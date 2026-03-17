@@ -1,3 +1,8 @@
 <Solution>
   <Project Path="DafterProApi.csproj" />
+  <Project Path="StoreManagement\StoreManagement.Server\StoreManagement.Server.csproj" />
+  <Project Path="StoreManagement\StoreManagement.Services\StoreManagement.Services.csproj" />
+  <Project Path="StoreManagement\StoreManagement.Infrastructure\StoreManagement.Infrastructure.csproj" />
+  <Project Path="StoreManagement\StoreManagement.Data\StoreManagement.Data.csproj" />
+  <Project Path="StoreManagement\StoreManagement.Shared\StoreManagement.Shared.csproj" />
 </Solution>

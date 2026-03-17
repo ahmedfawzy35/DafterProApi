@@ -12,7 +12,7 @@ namespace StoreManagement.Data;
 public class StoreDbContext : IdentityDbContext<User, Role, int>
 {
     private readonly ICurrentUserService _currentUserService;
-
+    //ahmedfawzyph9584@gmail.com
     public StoreDbContext(
         DbContextOptions<StoreDbContext> options,
         ICurrentUserService currentUserService) : base(options)
