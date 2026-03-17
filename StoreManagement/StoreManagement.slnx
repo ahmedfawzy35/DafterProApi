@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="StoreManagement.Data/StoreManagement.Data.csproj" />
+  <Project Path="StoreManagement.Infrastructure/StoreManagement.Infrastructure.csproj" />
+  <Project Path="StoreManagement.Server/StoreManagement.Server.csproj" />
+  <Project Path="StoreManagement.Services/StoreManagement.Services.csproj" />
+  <Project Path="StoreManagement.Shared/StoreManagement.Shared.csproj" />
+</Solution>
