@@ -40,6 +40,17 @@ public class InvoiceService : IInvoiceService
         if (from.HasValue) baseQuery = baseQuery.Where(i => i.Date >= from.Value);
         if (to.HasValue) baseQuery = baseQuery.Where(i => i.Date <= to.Value);
 
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            baseQuery = baseQuery.Where(i => 
+                (i.Customer != null && i.Customer.Name.Contains(query.Search)) || 
+                (i.Supplier != null && i.Supplier.Name.Contains(query.Search)) ||
+                (i.Notes != null && i.Notes.Contains(query.Search)));
+        }
+
+        var company = await _context.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == _currentUser.CompanyId);
+        var merchantName = company?.Name ?? "DafterPro";
+
         var total = await baseQuery.CountAsync();
         var items = await baseQuery
             .OrderByDescending(i => i.Date)
@@ -50,6 +61,7 @@ public class InvoiceService : IInvoiceService
                 Id = i.Id, InvoiceType = i.Type.ToString(),
                 CustomerName = i.Customer != null ? i.Customer.Name : null,
                 SupplierName = i.Supplier != null ? i.Supplier.Name : null,
+                MerchantName = merchantName,
                 Date = i.Date, TotalValue = i.TotalValue,
                 Discount = i.Discount, Paid = i.Paid, IsInstallment = i.IsInstallment,
                 Items = i.Items.Select(item => new InvoiceItemReadDto
@@ -64,6 +76,35 @@ public class InvoiceService : IInvoiceService
         {
             Items = items, PageNumber = query.PageNumber,
             PageSize = query.PageSize, TotalCount = total
+        };
+    }
+
+    public async Task<InvoiceReadDto?> GetByIdAsync(int id)
+    {
+        var invoice = await _context.Invoices
+            .Include(i => i.Customer)
+            .Include(i => i.Supplier)
+            .Include(i => i.Items).ThenInclude(item => item.Product)
+            .FirstOrDefaultAsync(i => i.Id == id);
+
+        if (invoice == null) return null;
+
+        var company = await _context.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == _currentUser.CompanyId);
+
+        return new InvoiceReadDto
+        {
+            Id = invoice.Id, InvoiceType = invoice.Type.ToString(),
+            CustomerName = invoice.Customer?.Name,
+            SupplierName = invoice.Supplier?.Name,
+            MerchantName = company?.Name ?? "DafterPro",
+            Date = invoice.Date, TotalValue = invoice.TotalValue,
+            Discount = invoice.Discount, Paid = invoice.Paid, IsInstallment = invoice.IsInstallment,
+            Items = invoice.Items.Select(item => new InvoiceItemReadDto
+            {
+                ProductId = item.ProductId, ProductName = item.Product.Name,
+                Quantity = item.Quantity, UnitPrice = item.UnitPrice,
+                Subtotal = item.Quantity * item.UnitPrice
+            }).ToList()
         };
     }
 
@@ -139,6 +180,25 @@ public class InvoiceService : IInvoiceService
             });
 
             await _context.SaveChangesAsync();
+
+            // سجل حركة نقدية تلقائية إذا تم دفع مبلغ
+            if (invoice.Paid > 0)
+            {
+                var cashTransaction = new CashTransaction
+                {
+                    Type = isSale ? TransactionType.In : TransactionType.Out,
+                    SourceType = isSale ? TransactionSource.Customer : TransactionSource.Supplier,
+                    Value = invoice.Paid,
+                    Date = invoice.Date,
+                    Notes = $"دفع تلقائي للفاتورة رقم {invoice.Id}",
+                    RelatedEntityId = isSale ? invoice.CustomerId : invoice.SupplierId,
+                    CompanyId = (int)_currentUser.CompanyId!,
+                    UserId = (int)_currentUser.UserId!
+                };
+                _context.CashTransactions.Add(cashTransaction);
+                await _context.SaveChangesAsync();
+            }
+
             await transaction.CommitAsync();
 
             return new InvoiceReadDto

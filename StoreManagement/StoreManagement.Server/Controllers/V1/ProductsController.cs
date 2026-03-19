@@ -38,11 +38,15 @@ public class ProductsController : ControllerBase
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<ProductReadDto>>>> GetAll(
-        [FromQuery] PaginationQueryDto query)
+        [FromQuery] PaginationQueryDto query,
+        [FromQuery] bool? isLowStock)
     {
         var productsQuery = _context.Products
             .Include(p => p.ProductImages)
             .AsQueryable();
+
+        if (isLowStock == true)
+            productsQuery = productsQuery.Where(p => p.StockQuantity <= 5); // حد افتراضي للنقص
 
         if (!string.IsNullOrWhiteSpace(query.Search))
             productsQuery = productsQuery.Where(p => p.Name.Contains(query.Search));

@@ -48,14 +48,13 @@ public class GlobalExceptionMiddleware
 
         context.Response.StatusCode = (int)statusCode;
 
-        var response = ApiResponse<object>.Failure(
-            message,
+        var response = ApiResponse<object>.Failure(message);
+        
 #if DEBUG
-            exception.Message
-#else
-            (string)null!
+        response.Errors.Add(exception.Message);
+        if (exception.StackTrace != null)
+            response.Errors.Add(exception.StackTrace);
 #endif
-        );
 
         var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
         {

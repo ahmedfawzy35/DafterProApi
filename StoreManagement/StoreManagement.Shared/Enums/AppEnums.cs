@@ -50,3 +50,21 @@ public enum InvoiceType
     Sale = 1,      // فاتورة مبيعات
     Purchase = 2   // فاتورة مشتريات
 }
+
+/// <summary>
+/// نوع التسوية الحسابية
+/// </summary>
+public enum SettlementType
+{
+    Add = 1,       // إضافة للرصيد (أرباح/تسوية موجبة)
+    Subtract = 2   // خصم من الرصيد (خسائر/تسوية سالبة)
+}
+
+/// <summary>
+/// مصدر التسوية
+/// </summary>
+public enum SettlementSource
+{
+    Customer = 1,
+    Supplier = 2
+}

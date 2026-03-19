@@ -157,6 +157,16 @@ builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 // Business Logic Services (Scoped)
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+builder.Services.AddScoped<ICashTransactionService, CashTransactionService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IBranchService, BranchService>();
+builder.Services.AddScoped<IInventoryService, InventoryService>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IPayrollService, PayrollService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IPluginService, PluginService>();
+builder.Services.AddScoped<ICompanyService, CompanyService>();
+builder.Services.AddScoped<ISettlementService, SettlementService>();
 
 // ===== AutoMapper + FluentValidation =====
 builder.Services.AddAutoMapper(cfg => {}, typeof(MappingProfile).Assembly);

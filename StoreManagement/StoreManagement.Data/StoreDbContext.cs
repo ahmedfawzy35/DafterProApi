@@ -41,6 +41,7 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
 
     // ===== المعاملات النقدية =====
     public DbSet<CashTransaction> CashTransactions => Set<CashTransaction>();
+    public DbSet<AccountSettlement> AccountSettlements => Set<AccountSettlement>();
 
     // ===== الموظفون =====
     public DbSet<Employee> Employees => Set<Employee>();
@@ -90,6 +91,10 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         // تصفية المعاملات النقدية
         builder.Entity<CashTransaction>()
             .HasQueryFilter(t => !t.IsDeleted && t.CompanyId == companyId);
+
+        // تصفية التسويات
+        builder.Entity<AccountSettlement>()
+            .HasQueryFilter(s => !s.IsDeleted && s.CompanyId == companyId);
 
         // تصفية الموظفين
         builder.Entity<Employee>()
@@ -147,6 +152,12 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
             .HasOne(t => t.User)
             .WithMany()
             .HasForeignKey(t => t.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<AccountSettlement>()
+            .HasOne(s => s.User)
+            .WithMany()
+            .HasForeignKey(s => s.UserId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.Entity<StockTransaction>()

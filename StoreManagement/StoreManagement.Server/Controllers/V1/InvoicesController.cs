@@ -35,6 +35,14 @@ public class InvoicesController : ControllerBase
         return Ok(ApiResponse<PagedResult<InvoiceReadDto>>.SuccessResult(result));
     }
 
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<ApiResponse<InvoiceReadDto>>> GetById(int id)
+    {
+        var result = await _invoiceService.GetByIdAsync(id);
+        if (result == null) return NotFound(ApiResponse<InvoiceReadDto>.Failure("الفاتورة غير موجودة"));
+        return Ok(ApiResponse<InvoiceReadDto>.SuccessResult(result));
+    }
+
     [HttpPost]
     [Authorize(Roles = "Admin,Accountant,Sales")]
     public async Task<ActionResult<ApiResponse<InvoiceReadDto>>> Create([FromBody] CreateInvoiceDto dto)

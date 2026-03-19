@@ -94,6 +94,125 @@ public interface IInvoiceService
         Enums.InvoiceType? type,
         DateTime? from,
         DateTime? to);
+    Task<DTOs.InvoiceReadDto?> GetByIdAsync(int id);
     Task<DTOs.InvoiceReadDto> CreateAsync(DTOs.CreateInvoiceDto dto);
     Task DeleteAsync(int id);
+}
+/// <summary>
+/// خدمة إدارة المعاملات النقدية (Business Logic)
+/// </summary>
+public interface ICashTransactionService
+{
+    Task<PagedResult<DTOs.CashTransactionReadDto>> GetAllAsync(
+        DTOs.PaginationQueryDto query,
+        Enums.TransactionType? type,
+        Enums.TransactionSource? source,
+        DateTime? from,
+        DateTime? to);
+
+    Task<DTOs.CashTransactionReadDto?> GetByIdAsync(int id);
+    Task<DTOs.CashTransactionReadDto> CreateAsync(DTOs.CreateCashTransactionDto dto);
+    Task DeleteAsync(int id);
+}
+/// <summary>
+/// خدمة لوحة التحكم (إحصائيات وملخصات)
+/// </summary>
+/// <summary>
+/// خدمة لوحة التحكم (إحصائيات وملخصات)
+/// </summary>
+public interface IDashboardService
+{
+    Task<DTOs.DashboardStatsDto> GetDailyStatsAsync();
+    Task<DTOs.FinancialSummaryDto> GetFinancialSummaryAsync();
+    Task<List<DTOs.TopProductDto>> GetTopSellingProductsAsync(int count = 5);
+    Task<List<DTOs.DebtAlertDto>> GetDebtAlertsAsync();
+}
+/// <summary>
+/// خدمة إدارة الفروع (Business Logic)
+/// </summary>
+public interface IBranchService
+{
+    Task<List<DTOs.BranchReadDto>> GetAllAsync();
+    Task<DTOs.BranchReadDto?> GetByIdAsync(int id);
+    Task<DTOs.BranchReadDto> CreateAsync(DTOs.CreateBranchDto dto);
+    Task UpdateAsync(int id, DTOs.UpdateBranchDto dto);
+    Task DeleteAsync(int id);
+    Task<string> GetBranchStatusAsync(int id);
+}
+/// <summary>
+/// خدمة إدارة المخزون (Business Logic)
+/// </summary>
+public interface IInventoryService
+{
+    Task<PagedResult<DTOs.StockTransactionReadDto>> GetHistoryAsync(
+        DTOs.PaginationQueryDto query,
+        int? productId,
+        DateTime? from,
+        DateTime? to);
+
+    Task CreateAdjustmentAsync(DTOs.CreateStockAdjustmentDto dto);
+    Task RegisterInitialStockAsync(int productId, double quantity);
+}
+
+/// <summary>
+/// خدمة تسجيل الحضور والانصراف
+/// </summary>
+public interface IAttendanceService
+{
+    Task RecordAttendanceAsync(DTOs.AttendanceRecordDto dto);
+    Task<List<DTOs.AttendanceReadDto>> GetAllAsync(DateTime date);
+}
+
+/// <summary>
+/// خدمة إدارة الرواتب والمدفوعات
+/// </summary>
+public interface IPayrollService
+{
+    Task<List<DTOs.PayrollReadDto>> GetAllAsync(DateTime month);
+    Task GeneratePayrollAsync(DTOs.CreatePayrollDto dto);
+    Task PaySalaryAsync(int payrollId);
+}
+
+/// <summary>
+/// خدمة سجلات التغيير (Audit Logs)
+/// </summary>
+public interface IAuditLogService
+{
+    Task<PagedResult<DTOs.AuditLogReadDto>> GetAllAsync(
+        DTOs.PaginationQueryDto query,
+        string? entityName = null,
+        int? userId = null);
+}
+
+/// <summary>
+/// خدمة إدارة الإضافات (Plugins)
+/// </summary>
+public interface IPluginService
+{
+    Task<List<DTOs.PluginReadDto>> GetAllAsync();
+    Task TogglePluginAsync(int pluginId, bool enabled);
+}
+
+/// <summary>
+/// خدمة إدارة بيانات الشركة (الإعدادات الأساسية)
+/// </summary>
+public interface ICompanyService
+{
+    Task<DTOs.CompanyReadDto> GetMyCompanyAsync();
+    Task UpdateMyCompanyAsync(DTOs.CompanyUpdateDto dto);
+}
+
+/// <summary>
+/// خدمة تسويات الحسابات (خصم أو إضافة رصيد يدوي)
+/// </summary>
+public interface ISettlementService
+{
+    Task<PagedResult<DTOs.SettlementReadDto>> GetAllAsync(
+        DTOs.PaginationQueryDto query,
+        Enums.SettlementSource? source,
+        Enums.SettlementType? type,
+        DateTime? from,
+        DateTime? to);
+
+    Task<DTOs.SettlementReadDto> CreateAsync(DTOs.CreateSettlementDto dto);
 }
