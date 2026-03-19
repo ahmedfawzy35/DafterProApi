@@ -177,4 +177,47 @@ public class ProductsController : ControllerBase
 
         return Ok(ApiResponse<object>.SuccessResult("تم حذف المنتج بنجاح"));
     }
+
+    /// <summary>
+    /// رفع صورة للمنتج
+    /// </summary>
+    [HttpPost("{id:int}/image")]
+    [Authorize(Roles = "Admin,Warehouse")]
+    public async Task<ActionResult<ApiResponse<object>>> UploadImage(int id, IFormFile file, [FromQuery] bool isThumbnail = false)
+    {
+        var product = await _context.Products.FindAsync(id);
+        if (product is null)
+            return NotFound(ApiResponse<object>.Failure("المنتج غير موجود"));
+
+        if (file == null || file.Length == 0)
+            return BadRequest(ApiResponse<object>.Failure("الملف غير صالح"));
+
+        if (file.Length > 2 * 1024 * 1024)
+            return BadRequest(ApiResponse<object>.Failure("حجم الصورة يتخطى 2 ميجابايت"));
+
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        var base64 = Convert.ToBase64String(ms.ToArray());
+        var dataUrl = $"data:{file.ContentType};base64,{base64}";
+
+        var productImage = new ProductImage
+        {
+            ProductId = id,
+            ImageUrl = dataUrl,
+            IsThumbnail = isThumbnail
+        };
+
+        if (isThumbnail)
+        {
+            var existingThumbnail = await _context.ProductImages
+                .Where(i => i.ProductId == id && i.IsThumbnail)
+                .ToListAsync();
+            foreach (var img in existingThumbnail) img.IsThumbnail = false;
+        }
+
+        _context.ProductImages.Add(productImage);
+        await _context.SaveChangesAsync();
+
+        return Ok(ApiResponse<object>.SuccessResult(new { id = productImage.Id, url = dataUrl }, "تم رفع الصورة بنجاح"));
+    }
 }

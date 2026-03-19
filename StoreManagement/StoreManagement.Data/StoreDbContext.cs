@@ -22,6 +22,8 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
 
     // ===== الشركات والفروع =====
     public DbSet<Company> Companies => Set<Company>();
+    public DbSet<CompanyPhoneNumber> CompanyPhoneNumbers => Set<CompanyPhoneNumber>();
+    public DbSet<CompanyLogo> CompanyLogos => Set<CompanyLogo>();
     public DbSet<Branch> Branches => Set<Branch>();
 
     // ===== العملاء والموردون =====
@@ -104,6 +106,10 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<StockTransaction>()
             .HasQueryFilter(st => !st.IsDeleted && st.CompanyId == companyId);
 
+        // تصفية الشركات (Soft Delete)
+        builder.Entity<Company>()
+            .HasQueryFilter(c => !c.IsDeleted);
+
         // ===== الفهارس (Indexes) لتحسين الأداء =====
         builder.Entity<Customer>().HasIndex(c => c.CompanyId);
         builder.Entity<Customer>().HasIndex(c => c.Name);
@@ -166,6 +172,19 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
             .HasForeignKey(st => st.UserId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // ===== إعداد علاقات الشركة =====
+        builder.Entity<CompanyPhoneNumber>()
+            .HasOne(p => p.Company)
+            .WithMany(c => c.PhoneNumbers)
+            .HasForeignKey(p => p.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<CompanyLogo>()
+            .HasOne(l => l.Company)
+            .WithOne(c => c.Logo)
+            .HasForeignKey<CompanyLogo>(l => l.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // ===== إعداد علاقات SaaS =====
 
         // كل شركة لها اشتراكات
@@ -209,7 +228,7 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         // إضافة الـ Interceptor لضمان Soft Delete وتحديث التواريخ تلقائياً
-        optionsBuilder.AddInterceptors(new SoftDeleteAndAuditInterceptor());
+        optionsBuilder.AddInterceptors(new SoftDeleteAndAuditInterceptor(_currentUserService));
         base.OnConfiguring(optionsBuilder);
     }
 }

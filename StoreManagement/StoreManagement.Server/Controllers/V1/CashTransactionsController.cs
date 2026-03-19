@@ -52,6 +52,14 @@ public class CashTransactionsController : ControllerBase
         return Ok(ApiResponse<CashTransactionReadDto>.SuccessResult(result, "تم تسجيل العملية المالية بنجاح"));
     }
 
+    [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin,Accountant")]
+    public async Task<ActionResult<ApiResponse<object>>> Update(int id, [FromBody] CreateCashTransactionDto dto)
+    {
+        await _cashService.UpdateAsync(id, dto);
+        return Ok(ApiResponse<object>.SuccessResult("تم تحديث العملية المالية بنجاح"));
+    }
+
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Admin,Accountant")]
     public async Task<ActionResult<ApiResponse<object>>> Delete(int id)

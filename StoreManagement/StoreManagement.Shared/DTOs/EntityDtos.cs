@@ -344,19 +344,65 @@ public class PluginReadDto
 
 // ===== DTOs خاصة بالشركة (Company) =====
 
+// ===== DTOs خاصة بالشركة (Company) =====
+
+public class CompanyCreateDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Address { get; set; }
+    public string? BusinessType { get; set; }
+    public bool HasBranches { get; set; }
+    public bool ManageInventory { get; set; }
+    public List<CompanyPhoneNumberDto> PhoneNumbers { get; set; } = [];
+}
+
 public class CompanyUpdateDto
 {
     public string Name { get; set; } = string.Empty;
+    public string? Address { get; set; }
+    public string? BusinessType { get; set; }
     public bool HasBranches { get; set; }
     public bool ManageInventory { get; set; }
+    
+    // بيانات إضافية للتحديث فقط
+    public string? TaxId { get; set; }
+    public string? CommercialRegistry { get; set; }
+    public string? OfficialEmail { get; set; }
+    public string? Website { get; set; }
+    public int? Currency { get; set; }
+    public string? Description { get; set; }
 }
 
 public class CompanyReadDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? Address { get; set; }
+    public string? BusinessType { get; set; }
     public bool HasBranches { get; set; }
     public bool ManageInventory { get; set; }
+    
+    public string? TaxId { get; set; }
+    public string? CommercialRegistry { get; set; }
+    public string? OfficialEmail { get; set; }
+    public string? Website { get; set; }
+    public string? Currency { get; set; }
+    public string? Description { get; set; }
+    
+    public List<CompanyPhoneNumberDto> PhoneNumbers { get; set; } = [];
+    public CompanyLogoDto? Logo { get; set; }
+}
+
+public class CompanyPhoneNumberDto
+{
+    public string PhoneNumber { get; set; } = string.Empty;
+    public bool IsWhatsApp { get; set; }
+}
+
+public class CompanyLogoDto
+{
+    public byte[] Content { get; set; } = [];
+    public string? ContentType { get; set; }
 }
 
 // ===== DTOs خاصة بالتسويات (Settlements) =====

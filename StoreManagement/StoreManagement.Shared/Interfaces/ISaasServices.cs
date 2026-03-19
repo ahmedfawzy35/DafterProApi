@@ -112,6 +112,7 @@ public interface ICashTransactionService
 
     Task<DTOs.CashTransactionReadDto?> GetByIdAsync(int id);
     Task<DTOs.CashTransactionReadDto> CreateAsync(DTOs.CreateCashTransactionDto dto);
+    Task UpdateAsync(int id, DTOs.CreateCashTransactionDto dto);
     Task DeleteAsync(int id);
 }
 /// <summary>
@@ -198,8 +199,10 @@ public interface IPluginService
 /// </summary>
 public interface ICompanyService
 {
-    Task<DTOs.CompanyReadDto> GetMyCompanyAsync();
+    Task<DTOs.CompanyReadDto> GetMyCompanyAsync(bool includeLogo = false);
+    Task<DTOs.CompanyReadDto> CreateAsync(DTOs.CompanyCreateDto dto);
     Task UpdateMyCompanyAsync(DTOs.CompanyUpdateDto dto);
+    Task UploadLogoAsync(byte[] logoContent, string contentType);
 }
 
 /// <summary>

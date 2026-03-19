@@ -1,9 +1,11 @@
+using StoreManagement.Shared.Interfaces;
+
 namespace StoreManagement.Shared.Entities;
 
 /// <summary>
 /// الكيان الأساسي الذي ترث منه جميع جداول النظام
 /// </summary>
-public abstract class BaseEntity
+public abstract class BaseEntity : IAuditEntity
 {
     // المعرف الفريد
     public int Id { get; set; }
@@ -22,6 +24,9 @@ public abstract class BaseEntity
 
     // تاريخ آخر تعديل
     public DateTime? ModifiedDate { get; set; }
+
+    // المستخدم المنشئ
+    public int? CreatedByUserId { get; set; }
 
     // معالجة التزامن والتعديل المتزامن (Optimistic Concurrency)
     [System.ComponentModel.DataAnnotations.Timestamp]

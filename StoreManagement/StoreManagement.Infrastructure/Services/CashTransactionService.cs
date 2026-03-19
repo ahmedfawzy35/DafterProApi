@@ -144,67 +144,34 @@ public class CashTransactionService : ICashTransactionService
 
         _context.CashTransactions.Add(transaction);
 
-        // تحديث أرصدة العملاء/الموردين إذا كانت المعاملة مرتبطة بهم
-        if (dto.RelatedEntityId.HasValue)
-        {
-            if (dto.SourceType == (int)TransactionSource.Customer)
-            {
-                var customer = await _context.Customers.FindAsync(dto.RelatedEntityId.Value);
-                if (customer != null)
-                {
-                    // إذا كان "In" (وارد من عميل) -> يقلل المديونية (رصيد موجب يعني له، سالب يعني عليه)
-                    // حسب منطق السيستم: CashBalance غالباً يعبر عن صافي الحساب
-                    if (transaction.Type == TransactionType.In) customer.CashBalance += transaction.Value;
-                    else customer.CashBalance -= transaction.Value;
-                }
-            }
-            else if (dto.SourceType == (int)TransactionSource.Supplier)
-            {
-                var supplier = await _context.Suppliers.FindAsync(dto.RelatedEntityId.Value);
-                if (supplier != null)
-                {
-                    // إذا كان "Out" (صادر لمورد) -> يقلل المديونية للمورد
-                    if (transaction.Type == TransactionType.Out) supplier.CashBalance += transaction.Value;
-                    else supplier.CashBalance -= transaction.Value;
-                }
-            }
-        }
+        // تحديث أرصدة العملاء/الموردين
+        await AdjustBalanceAsync(transaction, reverse: false);
 
         await _context.SaveChangesAsync();
 
-        // جلب اسم المستخدم للرد
-        var user = await _context.Users.FindAsync(_currentUser.UserId);
+        return await GetByIdDetailedAsync(transaction.Id);
+    }
 
-        var companyEntity = await _context.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == transaction.CompanyId);
+    public async Task UpdateAsync(int id, CreateCashTransactionDto dto)
+    {
+        var transaction = await _context.CashTransactions.FindAsync(id)
+            ?? throw new KeyNotFoundException($"المعاملة رقم {id} غير موجودة");
 
-        var finalDto = new CashTransactionReadDto
-        {
-            Id = transaction.Id,
-            Type = transaction.Type.ToString(),
-            SourceType = transaction.SourceType.ToString(),
-            Value = transaction.Value,
-            Date = transaction.Date,
-            Notes = transaction.Notes,
-            UserName = user?.UserName ?? "Unknown",
-            RelatedEntityId = transaction.RelatedEntityId,
-            MerchantName = companyEntity?.Name ?? "DafterPro"
-        };
+        // 1. عكس التأثير القديم
+        await AdjustBalanceAsync(transaction, reverse: true);
 
-        if (transaction.RelatedEntityId.HasValue)
-        {
-            if (transaction.SourceType == TransactionSource.Customer)
-            {
-                var customer = await _context.Customers.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == transaction.RelatedEntityId);
-                finalDto.RelatedEntityName = customer?.Name;
-            }
-            else if (transaction.SourceType == TransactionSource.Supplier)
-            {
-                var supplier = await _context.Suppliers.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == transaction.RelatedEntityId);
-                finalDto.RelatedEntityName = supplier?.Name;
-            }
-        }
+        // 2. تحديث البيانات
+        transaction.Type = (TransactionType)dto.Type;
+        transaction.SourceType = (TransactionSource)dto.SourceType;
+        transaction.Value = dto.Value;
+        transaction.Date = dto.Date;
+        transaction.Notes = dto.Notes;
+        transaction.RelatedEntityId = dto.RelatedEntityId;
 
-        return finalDto;
+        // 3. تطبيق التأثير الجديد
+        await AdjustBalanceAsync(transaction, reverse: false);
+
+        await _context.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(int id)
@@ -213,29 +180,76 @@ public class CashTransactionService : ICashTransactionService
             ?? throw new KeyNotFoundException($"المعاملة رقم {id} غير موجودة");
 
         // عكس تأثير الرصيد عند الحذف
-        if (transaction.RelatedEntityId.HasValue)
-        {
-            if (transaction.SourceType == TransactionSource.Customer)
-            {
-                var customer = await _context.Customers.FindAsync(transaction.RelatedEntityId.Value);
-                if (customer != null)
-                {
-                    if (transaction.Type == TransactionType.In) customer.CashBalance -= transaction.Value;
-                    else customer.CashBalance += transaction.Value;
-                }
-            }
-            else if (transaction.SourceType == TransactionSource.Supplier)
-            {
-                var supplier = await _context.Suppliers.FindAsync(transaction.RelatedEntityId.Value);
-                if (supplier != null)
-                {
-                    if (transaction.Type == TransactionType.Out) supplier.CashBalance -= transaction.Value;
-                    else supplier.CashBalance += transaction.Value;
-                }
-            }
-        }
+        await AdjustBalanceAsync(transaction, reverse: true);
 
         _context.CashTransactions.Remove(transaction);
         await _context.SaveChangesAsync();
+    }
+
+    private async Task AdjustBalanceAsync(CashTransaction transaction, bool reverse)
+    {
+        if (!transaction.RelatedEntityId.HasValue) return;
+
+        double factor = reverse ? -1 : 1;
+        double amount = transaction.Value * factor;
+
+        if (transaction.SourceType == TransactionSource.Customer)
+        {
+            var customer = await _context.Customers.FindAsync(transaction.RelatedEntityId.Value);
+            if (customer != null)
+            {
+                if (transaction.Type == TransactionType.In) customer.CashBalance += amount;
+                else customer.CashBalance -= amount;
+            }
+        }
+        else if (transaction.SourceType == TransactionSource.Supplier)
+        {
+            var supplier = await _context.Suppliers.FindAsync(transaction.RelatedEntityId.Value);
+            if (supplier != null)
+            {
+                if (transaction.Type == TransactionType.Out) supplier.CashBalance += amount;
+                else supplier.CashBalance -= amount;
+            }
+        }
+    }
+
+    private async Task<CashTransactionReadDto> GetByIdDetailedAsync(int id)
+    {
+        var t = await _context.CashTransactions
+            .Include(t => t.User)
+            .IgnoreQueryFilters() // لضمان الجلب حتى لو كان هناك فلتر نشط
+            .FirstOrDefaultAsync(t => t.Id == id)
+            ?? throw new KeyNotFoundException();
+
+        var company = await _context.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == t.CompanyId);
+        
+        var dto = new CashTransactionReadDto
+        {
+            Id = t.Id,
+            Type = t.Type.ToString(),
+            SourceType = t.SourceType.ToString(),
+            Value = t.Value,
+            Date = t.Date,
+            Notes = t.Notes,
+            UserName = t.User.UserName ?? "Unknown",
+            RelatedEntityId = t.RelatedEntityId,
+            MerchantName = company?.Name ?? "DafterPro"
+        };
+
+        if (t.RelatedEntityId.HasValue)
+        {
+            if (t.SourceType == TransactionSource.Customer)
+            {
+                var customer = await _context.Customers.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == t.RelatedEntityId);
+                dto.RelatedEntityName = customer?.Name;
+            }
+            else if (t.SourceType == TransactionSource.Supplier)
+            {
+                var supplier = await _context.Suppliers.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == t.RelatedEntityId);
+                dto.RelatedEntityName = supplier?.Name;
+            }
+        }
+
+        return dto;
     }
 }

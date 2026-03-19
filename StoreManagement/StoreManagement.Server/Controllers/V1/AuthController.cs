@@ -46,12 +46,18 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// تسجيل الدخول - يُرجع JWT + Refresh Token
+    /// تسجيل الدخول - يُرجع JWT + Refresh Token + بيانات الشركة
     /// </summary>
     [HttpPost("login")]
     public async Task<ActionResult<ApiResponse<TokenResponseDto>>> Login([FromBody] LoginDto dto)
     {
-        var user = await _userManager.FindByEmailAsync(dto.Email);
+        var user = await _userManager.Users
+            .Include(u => u.Company)
+            .ThenInclude(c => c.PhoneNumbers)
+            .Include(u => u.Company)
+            .ThenInclude(c => c.Logo)
+            .FirstOrDefaultAsync(u => u.Email == dto.Email);
+
         if (user is null)
             return Unauthorized(ApiResponse<TokenResponseDto>.Failure("البريد الإلكتروني أو كلمة المرور غير صحيحة"));
 
@@ -72,13 +78,66 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("تسجيل دخول ناجح: {Email} من IP: {IP}", dto.Email, ipAddress);
 
+        // تحويل بيانات الشركة إلى DTO
+        var companyDto = user.Company != null ? new CompanyReadDto
+        {
+            Id = user.Company.Id,
+            Name = user.Company.Name,
+            Address = user.Company.Address,
+            BusinessType = user.Company.BusinessType,
+            HasBranches = user.Company.HasBranches,
+            ManageInventory = user.Company.ManageInventory,
+            TaxId = user.Company.TaxId,
+            CommercialRegistry = user.Company.CommercialRegistry,
+            OfficialEmail = user.Company.OfficialEmail,
+            Website = user.Company.Website,
+            Currency = user.Company.Currency?.ToString(),
+            Description = user.Company.Description,
+            PhoneNumbers = user.Company.PhoneNumbers.Select(p => new CompanyPhoneNumberDto
+            {
+                PhoneNumber = p.PhoneNumber,
+                IsWhatsApp = p.IsWhatsApp
+            }).ToList(),
+            Logo = user.Company.Logo != null ? new CompanyLogoDto
+            {
+                Content = user.Company.Logo.Content,
+                ContentType = user.Company.Logo.ContentType
+            } : null
+        } : null;
+
         return Ok(ApiResponse<TokenResponseDto>.SuccessResult(new TokenResponseDto
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken.Token,
             AccessTokenExpiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationInMinutes),
-            RefreshTokenExpiresAt = refreshToken.ExpiresAt
+            RefreshTokenExpiresAt = refreshToken.ExpiresAt,
+            Company = companyDto
         }, "تم تسجيل الدخول بنجاح"));
+    }
+
+    /// <summary>
+    /// تسجيل مستخدم جديد
+    /// </summary>
+    [HttpPost("register")]
+    public async Task<ActionResult<ApiResponse<object>>> Register([FromBody] RegisterDto dto)
+    {
+        var user = new User
+        {
+            UserName = dto.Email,
+            Email = dto.Email,
+            CompanyId = dto.CompanyId,
+            BranchId = dto.BranchId
+        };
+
+        var result = await _userManager.CreateAsync(user, dto.Password);
+        if (!result.Succeeded)
+            return BadRequest(ApiResponse<object>.Failure("فشل إنشاء الحساب", 
+                result.Errors.Select(e => e.Description).ToList()));
+
+        // إضافة الدور الوظيفي
+        await _userManager.AddToRoleAsync(user, dto.Role);
+
+        return Ok(ApiResponse<object>.SuccessResult(null, "تم إنشاء الحساب بنجاح"));
     }
 
     /// <summary>

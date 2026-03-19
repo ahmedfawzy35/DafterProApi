@@ -32,6 +32,23 @@ public class CreateSubscriptionDto
     public int DurationMonths { get; set; } = 1;
 }
 
+public class CreatePlanDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public decimal MonthlyPrice { get; set; }
+    public decimal AnnualPrice { get; set; }
+    public int MaxUsers { get; set; }
+    public int MaxBranches { get; set; }
+}
+
+public class CreatePlanFeatureDto
+{
+    public int PlanId { get; set; }
+    public string FeatureKey { get; set; } = string.Empty;
+    public bool IsEnabled { get; set; } = true;
+}
+
 // ===== DTOs خاصة بالمصادقة + Refresh Token =====
 
 public class RefreshTokenRequestDto
@@ -46,4 +63,7 @@ public class TokenResponseDto
     public string RefreshToken { get; set; } = string.Empty;
     public DateTime AccessTokenExpiresAt { get; set; }
     public DateTime RefreshTokenExpiresAt { get; set; }
+    
+    // بيانات الشركة المرتبطة بالمستخدم
+    public CompanyReadDto? Company { get; set; }
 }
