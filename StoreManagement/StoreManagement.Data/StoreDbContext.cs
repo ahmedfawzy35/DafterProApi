@@ -168,6 +168,12 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<Product>().HasIndex(p => p.CompanyId);
         builder.Entity<Product>().HasIndex(p => p.Name);
 
+        // فهرس فريد للباركود داخل كل شركة (خط الدفاع الأساسي ضد التكرار)
+        builder.Entity<Product>()
+            .HasIndex(p => new { p.CompanyId, p.Barcode })
+            .IsUnique()
+            .HasFilter($"[{nameof(Product.Barcode)}] != ''"); // تجاهل الصفوف ذات الباركود الفارغ
+
         builder.Entity<Invoice>().HasIndex(i => i.CompanyId);
         builder.Entity<Invoice>().HasIndex(i => new { i.CompanyId, i.Date });
 

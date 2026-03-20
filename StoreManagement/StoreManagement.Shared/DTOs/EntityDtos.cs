@@ -66,6 +66,10 @@ public class CreateProductDto
     public decimal Price { get; set; }
     public decimal CostPrice { get; set; }
     public string Unit { get; set; } = "قطعة";
+
+    // باركود اختياري — إذا أُرسل يُعامَل كباركود مصنعي
+    public string? Barcode { get; set; }
+    public BarcodeFormat BarcodeFormat { get; set; } = BarcodeFormat.EAN13;
 }
 
 public class UpdateProductDto
@@ -74,6 +78,10 @@ public class UpdateProductDto
     public decimal Price { get; set; }
     public decimal CostPrice { get; set; }
     public string Unit { get; set; } = "قطعة";
+
+    // تحديث الباركود — مقيَّد بسياسة (Generated → Factory فقط)
+    public string? Barcode { get; set; }
+    public BarcodeFormat? BarcodeFormat { get; set; }
 }
 
 public class ProductReadDto
@@ -85,6 +93,25 @@ public class ProductReadDto
     public double StockQuantity { get; set; }
     public string Unit { get; set; } = string.Empty;
     public string? ThumbnailUrl { get; set; }
+
+    // بيانات الباركود
+    public string Barcode { get; set; } = string.Empty;
+    public string BarcodeType { get; set; } = string.Empty;
+    public string BarcodeFormat { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// بيانات ملصق الطباعة — يُعاد من endpoint /label
+/// </summary>
+public class ProductLabelDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public string Currency { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+    public string Barcode { get; set; } = string.Empty;
+    public string BarcodeFormat { get; set; } = string.Empty; // "EAN13" أو "CODE128"
 }
 
 // ===== DTOs خاصة بالفاتورة =====

@@ -24,6 +24,7 @@ using StoreManagement.Services.Validators;
 using StoreManagement.Shared.Entities;
 using StoreManagement.Shared.Interfaces;
 using StoreManagement.Shared.Settings;
+using StoreManagement.Services.Services;
 
 // ===== إعداد Serilog مع Structured Logging =====
 Log.Logger = new LoggerConfiguration()
@@ -191,6 +192,7 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IPluginService, PluginService>();
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ISettlementService, SettlementService>();
+builder.Services.AddScoped<IBarcodeService, BarcodeService>();
 
 // HR & Payroll Engine Services (Scoped)
 builder.Services.AddScoped<IEmployeeStatusResolver, EmployeeStatusResolver>();

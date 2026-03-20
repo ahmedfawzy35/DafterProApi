@@ -154,3 +154,23 @@ public enum AttendanceStatus
     Holiday = 5,    // عطلة رسمية
     Weekend = 6     // عطلة نهاية أسبوع
 }
+
+// ===== Barcode Enums =====
+
+/// <summary>
+/// مصدر الباركود: من المصنع أو مُولَّد داخلياً
+/// </summary>
+public enum BarcodeType
+{
+    Generated = 1, // مُولَّد تلقائياً بواسطة النظام (EAN-13 داخلي)
+    Factory = 2    // باركود المصنع (ممسوح أو مُدخَل يدوياً)
+}
+
+/// <summary>
+/// صيغة الباركود المستخدمة
+/// </summary>
+public enum BarcodeFormat
+{
+    EAN13 = 1,   // للمنتجات التجارية القياسية (13 رقم)
+    CODE128 = 2  // للاستخدام الداخلي والمرن (نصوص وأرقام)
+}
