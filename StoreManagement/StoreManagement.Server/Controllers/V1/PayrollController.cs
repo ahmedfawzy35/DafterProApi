@@ -21,25 +21,32 @@ public class PayrollController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<List<PayrollReadDto>>>> GetAll([FromQuery] DateTime month)
+    public async Task<ActionResult<ApiResponse<List<PayrollRunReadDto>>>> GetAll([FromQuery] int month, [FromQuery] int year)
     {
-        var result = await _payrollService.GetAllAsync(month);
-        return Ok(ApiResponse<List<PayrollReadDto>>.SuccessResult(result));
+        var result = await _payrollService.GetPayrollRunsAsync(month, year);
+        return Ok(ApiResponse<List<PayrollRunReadDto>>.SuccessResult(result));
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ApiResponse<PayrollRunDetailsDto>>> GetDetails(int id)
+    {
+        var result = await _payrollService.GetPayrollDetailsAsync(id);
+        return Ok(ApiResponse<PayrollRunDetailsDto>.SuccessResult(result));
     }
 
     [HttpPost("generate")]
     [Authorize(Roles = "Admin,Accountant")]
-    public async Task<ActionResult<ApiResponse<string>>> Generate([FromBody] CreatePayrollDto dto)
+    public async Task<ActionResult<ApiResponse<string>>> Generate([FromQuery] int month, [FromQuery] int year, [FromBody] List<int>? employeeIds = null)
     {
-        await _payrollService.GeneratePayrollAsync(dto);
-        return Ok(ApiResponse<string>.SuccessResult("تم إنشاء مسير الرواتب بنجاح"));
+        await _payrollService.GeneratePayrollRunAsync(month, year, employeeIds);
+        return Ok(ApiResponse<string>.SuccessResult("تم إنشاء/تحديث تشغيل الرواتب بنجاح"));
     }
 
-    [HttpPost("{id}/pay")]
+    [HttpPost("lock-and-pay")]
     [Authorize(Roles = "Admin,Accountant")]
-    public async Task<ActionResult<ApiResponse<string>>> Pay(int id)
+    public async Task<ActionResult<ApiResponse<string>>> LockAndPay([FromQuery] int month, [FromQuery] int year)
     {
-        await _payrollService.PaySalaryAsync(id);
-        return Ok(ApiResponse<string>.SuccessResult("تم صرف الراتب بنجاح وتحديث الصندوق"));
+        await _payrollService.LockAndPayPayrollAsync(month, year);
+        return Ok(ApiResponse<string>.SuccessResult("تم اعتماد وصرف الرواتب بنجاح وتحديث الصندوق"));
     }
 }

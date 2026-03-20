@@ -22,16 +22,19 @@ public enum TransactionSource
     Other = 6       // أخرى
 }
 
-/// <summary>
-/// حالة الحضور والغياب
-/// </summary>
-public enum AttendanceStatus
-{
-    Present = 1,  // حاضر
-    Absent = 2,   // غائب
-    Late = 3,     // متأخر
-    OnLeave = 4   // في إجازة
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /// <summary>
 /// نوع حركة المخزون: وارد أو صادر
@@ -91,4 +94,63 @@ public enum Currency
     YER = 15,  // ريال يمني
     USD = 16,  // دولار أمريكي
     EUR = 17   // يورو
+}
+
+// ===== HR & Payroll Enums =====
+
+public enum EmployeeType
+{
+    Monthly = 1,
+    Daily = 2,
+    Weekly = 3,
+    Commission = 4
+}
+
+public enum EmployeeActionType
+{
+    Hire = 1,           // تعيين
+    Termination = 2,    // إنهاء خدمة
+    Leave = 3,          // إجازة (سنوية/مرضية)
+    UnpaidLeave = 4,    // إجازة بدون راتب
+    Suspension = 5,     // توقيف عن العمل
+    ReturnToWork = 6    // عودة للعمل
+}
+
+public enum AdjustmentType
+{
+    Addition = 1,   // إضافة (بدل، مكافأة)
+    Deduction = 2   // خصم (جزاء، استقطاع)
+}
+
+public enum RecurringAdjustmentType
+{
+    FixedAmount = 1,
+    PercentageOfBasic = 2
+}
+
+public enum LoanStatus
+{
+    Active = 1,
+    Paid = 2,
+    Closed = 3,
+    Restructured = 4
+}
+
+public enum PolicyDataType
+{
+    String = 1,
+    Int = 2,
+    Decimal = 3,
+    Boolean = 4,
+    Json = 5
+}
+
+public enum AttendanceStatus
+{
+    Present = 1,    // حاضر
+    Absent = 2,     // غائب
+    Late = 3,       // متأخر
+    Leave = 4,      // إجازة
+    Holiday = 5,    // عطلة رسمية
+    Weekend = 6     // عطلة نهاية أسبوع
 }

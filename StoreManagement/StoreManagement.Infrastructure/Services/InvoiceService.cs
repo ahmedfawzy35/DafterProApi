@@ -2,7 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.DTOs;
-using StoreManagement.Shared.Entities;
+using StoreManagement.Shared.Entities.HR;
+using StoreManagement.Shared.Entities.Inventory;
+using StoreManagement.Shared.Entities.Sales;
+using StoreManagement.Shared.Entities.Finance;
+using StoreManagement.Shared.Entities.Identity;
+using StoreManagement.Shared.Entities.Partners;
+using StoreManagement.Shared.Entities.Configuration;
+using StoreManagement.Shared.Entities.Core;
 using StoreManagement.Shared.Enums;
 using StoreManagement.Shared.Interfaces;
 
@@ -68,7 +75,7 @@ public class InvoiceService : IInvoiceService
                 {
                     ProductId = item.ProductId, ProductName = item.Product.Name,
                     Quantity = item.Quantity, UnitPrice = item.UnitPrice,
-                    Subtotal = item.Quantity * item.UnitPrice
+                    Subtotal = (decimal)item.Quantity * item.UnitPrice
                 }).ToList()
             }).ToListAsync();
 
@@ -103,7 +110,7 @@ public class InvoiceService : IInvoiceService
             {
                 ProductId = item.ProductId, ProductName = item.Product.Name,
                 Quantity = item.Quantity, UnitPrice = item.UnitPrice,
-                Subtotal = item.Quantity * item.UnitPrice
+                Subtotal = (decimal)item.Quantity * item.UnitPrice
             }).ToList()
         };
     }
@@ -127,7 +134,7 @@ public class InvoiceService : IInvoiceService
                 CompanyId = _currentUser.CompanyId
             };
 
-            double totalValue = 0;
+            decimal totalValue = 0;
             var isSale = (InvoiceType)dto.InvoiceType == InvoiceType.Sale;
             var isPurchase = (InvoiceType)dto.InvoiceType == InvoiceType.Purchase;
 
@@ -163,7 +170,7 @@ public class InvoiceService : IInvoiceService
                     UnitPrice = itemDto.UnitPrice
                 });
 
-                totalValue += itemDto.Quantity * itemDto.UnitPrice;
+                totalValue += (decimal)itemDto.Quantity * itemDto.UnitPrice;
             }
 
             invoice.TotalValue = totalValue;

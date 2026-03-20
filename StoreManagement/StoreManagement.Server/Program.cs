@@ -16,6 +16,7 @@ using StoreManagement.Data;
 using StoreManagement.Data.Seeding;
 using StoreManagement.Infrastructure;
 using StoreManagement.Infrastructure.Services;
+using StoreManagement.Infrastructure.Services.PayrollStrategies;
 using StoreManagement.Server.Jobs;
 using StoreManagement.Server.Middleware;
 using StoreManagement.Services.Mappings;
@@ -92,6 +93,29 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// ===== Authorization Policies (Claims-Based Permissions) =====
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("RequirePermission:settings.roles",
+        p => p.RequireClaim("permission", "settings.roles"))
+    .AddPolicy("RequirePermission:settings.users",
+        p => p.RequireClaim("permission", "settings.users"))
+    .AddPolicy("RequirePermission:settings.general",
+        p => p.RequireClaim("permission", "settings.general"))
+    .AddPolicy("RequirePermission:settings.billing",
+        p => p.RequireClaim("permission", "settings.billing"))
+    .AddPolicy("RequirePermission:employees.payroll",
+        p => p.RequireClaim("permission", "employees.payroll"))
+    .AddPolicy("RequirePermission:employees.loans",
+        p => p.RequireClaim("permission", "employees.loans"))
+    .AddPolicy("RequirePermission:sales.delete",
+        p => p.RequireClaim("permission", "sales.delete"))
+    .AddPolicy("RequirePermission:sales.refund",
+        p => p.RequireClaim("permission", "sales.refund"))
+    .AddPolicy("RequirePermission:finance.delete",
+        p => p.RequireClaim("permission", "finance.delete"))
+    .AddPolicy("RequirePermission:reports.export",
+        p => p.RequireClaim("permission", "reports.export"));
+
 // ===== Distributed Cache (Redis + MemoryCache Fallback) =====
 builder.Services.AddMemoryCache();
 
@@ -167,6 +191,13 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IPluginService, PluginService>();
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<ISettlementService, SettlementService>();
+
+// HR & Payroll Engine Services (Scoped)
+builder.Services.AddScoped<IEmployeeStatusResolver, EmployeeStatusResolver>();
+builder.Services.AddScoped<ILoanService, LoanService>();
+builder.Services.AddScoped<IPolicyService, PolicyService>();
+builder.Services.AddScoped<ISalaryCalculator, MonthlySalaryCalculator>();
+builder.Services.AddScoped<ISalaryCalculator, DailySalaryCalculator>();
 
 // ===== AutoMapper + FluentValidation =====
 builder.Services.AddAutoMapper(cfg => {}, typeof(MappingProfile).Assembly);

@@ -1,5 +1,3 @@
-using StoreManagement.Shared.Entities;
-
 namespace StoreManagement.Shared.Entities;
 
 // ===== Plans & Features =====

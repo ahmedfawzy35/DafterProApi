@@ -5,7 +5,14 @@ using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.DTOs;
-using StoreManagement.Shared.Entities;
+using StoreManagement.Shared.Entities.HR;
+using StoreManagement.Shared.Entities.Inventory;
+using StoreManagement.Shared.Entities.Sales;
+using StoreManagement.Shared.Entities.Finance;
+using StoreManagement.Shared.Entities.Identity;
+using StoreManagement.Shared.Entities.Partners;
+using StoreManagement.Shared.Entities.Configuration;
+using StoreManagement.Shared.Entities.Core;
 
 namespace StoreManagement.Server.Controllers.V1;
 

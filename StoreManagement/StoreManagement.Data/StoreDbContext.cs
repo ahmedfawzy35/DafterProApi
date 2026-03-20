@@ -1,7 +1,14 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data.Interceptors;
-using StoreManagement.Shared.Entities;
+using StoreManagement.Shared.Entities.HR;
+using StoreManagement.Shared.Entities.Inventory;
+using StoreManagement.Shared.Entities.Sales;
+using StoreManagement.Shared.Entities.Finance;
+using StoreManagement.Shared.Entities.Identity;
+using StoreManagement.Shared.Entities.Partners;
+using StoreManagement.Shared.Entities.Configuration;
+using StoreManagement.Shared.Entities.Core;
 using StoreManagement.Shared.Interfaces;
 
 namespace StoreManagement.Data;
@@ -48,7 +55,18 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     // ===== الموظفون =====
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+    public DbSet<Attendance> Attendances => Set<Attendance>();
+    public DbSet<EmployeeAction> EmployeeActions => Set<EmployeeAction>();
+    public DbSet<EmployeeSalary> EmployeeSalaries => Set<EmployeeSalary>();
+    public DbSet<SalaryAdjustment> SalaryAdjustments => Set<SalaryAdjustment>();
+    public DbSet<RecurringAdjustment> RecurringAdjustments => Set<RecurringAdjustment>();
+    public DbSet<EmployeeLoan> EmployeeLoans => Set<EmployeeLoan>();
+    public DbSet<LoanInstallment> LoanInstallments => Set<LoanInstallment>();
+    public DbSet<PayrollRun> PayrollRuns => Set<PayrollRun>();
+    public DbSet<PayrollRunItem> PayrollRunItems => Set<PayrollRunItem>();
     public DbSet<Payroll> Payrolls => Set<Payroll>();
+
+    public DbSet<CompanyPolicy> CompanyPolicies => Set<CompanyPolicy>();
 
     // ===== النظام والإضافات =====
     public DbSet<Plugin> Plugins => Set<Plugin>();
@@ -98,9 +116,39 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<AccountSettlement>()
             .HasQueryFilter(s => !s.IsDeleted && s.CompanyId == companyId);
 
-        // تصفية الموظفين
+        // تصفية الموظفين وتوابعهم
         builder.Entity<Employee>()
             .HasQueryFilter(e => !e.IsDeleted && e.CompanyId == companyId);
+
+        builder.Entity<Attendance>()
+            .HasQueryFilter(a => !a.IsDeleted && a.CompanyId == companyId);
+
+        builder.Entity<EmployeeAction>()
+            .HasQueryFilter(a => !a.IsDeleted && a.CompanyId == companyId);
+
+        builder.Entity<EmployeeSalary>()
+            .HasQueryFilter(s => !s.IsDeleted && s.CompanyId == companyId);
+
+        builder.Entity<SalaryAdjustment>()
+            .HasQueryFilter(s => !s.IsDeleted && s.CompanyId == companyId);
+
+        builder.Entity<RecurringAdjustment>()
+            .HasQueryFilter(s => !s.IsDeleted && s.CompanyId == companyId);
+
+        builder.Entity<EmployeeLoan>()
+            .HasQueryFilter(l => !l.IsDeleted && l.CompanyId == companyId);
+
+        builder.Entity<LoanInstallment>()
+            .HasQueryFilter(i => !i.IsDeleted && i.CompanyId == companyId);
+
+        builder.Entity<PayrollRun>()
+            .HasQueryFilter(p => !p.IsDeleted && p.CompanyId == companyId);
+
+        builder.Entity<PayrollRunItem>()
+            .HasQueryFilter(p => !p.IsDeleted && p.CompanyId == companyId);
+
+        builder.Entity<CompanyPolicy>()
+            .HasQueryFilter(p => !p.IsDeleted && p.CompanyId == companyId);
 
         // تصفية حركات المخزون
         builder.Entity<StockTransaction>()
@@ -140,6 +188,88 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<Invoice>()
             .Property(i => i.RowVersion)
             .IsRowVersion();
+
+        // ===== دقة أنواع الـ Decimal لمنع التقريب غير المتوقع =====
+        // خطة الاشتراك
+        builder.Entity<Plan>()
+            .Property(p => p.MonthlyPrice).HasColumnType("decimal(18,4)");
+        builder.Entity<Plan>()
+            .Property(p => p.AnnualPrice).HasColumnType("decimal(18,4)");
+
+        // الفاتورة
+        builder.Entity<Invoice>()
+            .Property(i => i.TotalValue).HasColumnType("decimal(18,4)");
+        builder.Entity<Invoice>()
+            .Property(i => i.Discount).HasColumnType("decimal(18,4)");
+        builder.Entity<Invoice>()
+            .Property(i => i.Paid).HasColumnType("decimal(18,4)");
+
+        // عناصر الفاتورة
+        builder.Entity<InvoiceItem>()
+            .Property(ii => ii.UnitPrice).HasColumnType("decimal(18,4)");
+
+        // المنتج
+        builder.Entity<Product>()
+            .Property(p => p.Price).HasColumnType("decimal(18,4)");
+        builder.Entity<Product>()
+            .Property(p => p.CostPrice).HasColumnType("decimal(18,4)");
+
+        // العميل والمورد
+        builder.Entity<Customer>()
+            .Property(c => c.CashBalance).HasColumnType("decimal(18,4)");
+        builder.Entity<Supplier>()
+            .Property(s => s.CashBalance).HasColumnType("decimal(18,4)");
+
+        // المعاملات المالية
+        builder.Entity<CashTransaction>()
+            .Property(t => t.Value).HasColumnType("decimal(18,4)");
+        builder.Entity<AccountSettlement>()
+            .Property(s => s.Amount).HasColumnType("decimal(18,4)");
+
+        // الرواتب والموظفون
+        builder.Entity<Employee>()
+            .Property(e => e.Salary).HasColumnType("decimal(18,4)");
+        builder.Entity<Employee>()
+            .Property(e => e.Allowances).HasColumnType("decimal(18,4)");
+        builder.Entity<Employee>()
+            .Property(e => e.Deductions).HasColumnType("decimal(18,4)");
+        builder.Entity<Attendance>()
+            .Property(a => a.WorkingHours).HasColumnType("decimal(18,4)");
+        builder.Entity<EmployeeSalary>()
+            .Property(s => s.Amount).HasColumnType("decimal(18,4)");
+        builder.Entity<SalaryAdjustment>()
+            .Property(s => s.Amount).HasColumnType("decimal(18,4)");
+        builder.Entity<RecurringAdjustment>()
+            .Property(r => r.Amount).HasColumnType("decimal(18,4)");
+
+        builder.Entity<EmployeeLoan>()
+            .Property(l => l.TotalAmount).HasColumnType("decimal(18,4)");
+        builder.Entity<EmployeeLoan>()
+            .Property(l => l.InstallmentAmount).HasColumnType("decimal(18,4)");
+        builder.Entity<LoanInstallment>()
+            .Property(li => li.Amount).HasColumnType("decimal(18,4)");
+
+        // تشغيلات الرواتب
+        builder.Entity<PayrollRun>()
+            .Property(p => p.BasicSalary).HasColumnType("decimal(18,4)");
+        builder.Entity<PayrollRun>()
+            .Property(p => p.TotalAllowances).HasColumnType("decimal(18,4)");
+        builder.Entity<PayrollRun>()
+            .Property(p => p.TotalDeductions).HasColumnType("decimal(18,4)");
+        builder.Entity<PayrollRun>()
+            .Property(p => p.LoanDeductions).HasColumnType("decimal(18,4)");
+        builder.Entity<PayrollRun>()
+            .Property(p => p.NetSalary).HasColumnType("decimal(18,4)");
+        builder.Entity<PayrollRunItem>()
+            .Property(pi => pi.Amount).HasColumnType("decimal(18,4)");
+
+        // سجلات الرواتب القديمة (Legacy)
+        builder.Entity<Payroll>()
+            .Property(p => p.Salary).HasColumnType("decimal(18,4)");
+        builder.Entity<Payroll>()
+            .Property(p => p.Bonuses).HasColumnType("decimal(18,4)");
+        builder.Entity<Payroll>()
+            .Property(p => p.Deductions).HasColumnType("decimal(18,4)");
 
         // ===== إعداد العلاقات =====
         builder.Entity<User>()

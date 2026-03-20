@@ -1,0 +1,33 @@
+using StoreManagement.Shared.Enums;
+
+namespace StoreManagement.Shared.Entities.Finance;
+
+/// <summary>
+/// كيان تسوية الحسابات (خصم أو إضافة رصيد يدوي دون حركة نقدية)
+/// </summary>
+public class AccountSettlement : BaseEntity
+{
+    // نوع المصدر (عميل أو مورد)
+    public SettlementSource SourceType { get; set; }
+
+    // معرف العميل أو المورد
+    public int RelatedEntityId { get; set; }
+
+    // نوع التسوية (إضافة أو خصم)
+    public SettlementType Type { get; set; }
+
+    // مبلغ التسوية
+    public decimal Amount { get; set; }
+
+    // تاريخ التسوية
+    public DateTime Date { get; set; } = DateTime.UtcNow;
+
+    // ملاحظات
+    public string? Notes { get; set; }
+
+    // معرف المستخدم الذي أجرى التسوية
+    public int UserId { get; set; }
+
+    // علاقة بالمستخدم
+    public User User { get; set; } = null!;
+}

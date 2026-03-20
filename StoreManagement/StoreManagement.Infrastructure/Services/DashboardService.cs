@@ -104,7 +104,7 @@ public class DashboardService : IDashboardService
                 ProductId = g.Key.ProductId,
                 Name = g.Key.Name,
                 QuantitySold = g.Sum(ii => ii.Quantity),
-                Revenue = g.Sum(ii => ii.Quantity * ii.UnitPrice)
+                Revenue = g.Sum(ii => (decimal)ii.Quantity * ii.UnitPrice)
             })
             .OrderByDescending(p => p.QuantitySold)
             .Take(count)

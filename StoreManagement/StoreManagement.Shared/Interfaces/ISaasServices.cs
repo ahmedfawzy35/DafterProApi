@@ -160,18 +160,57 @@ public interface IInventoryService
 /// </summary>
 public interface IAttendanceService
 {
-    Task RecordAttendanceAsync(DTOs.AttendanceRecordDto dto);
+    Task RecordAttendanceAsync(DTOs.AttendanceCreateDto dto);
     Task<List<DTOs.AttendanceReadDto>> GetAllAsync(DateTime date);
+    Task<List<DTOs.AttendanceReadDto>> GetEmployeeAttendanceAsync(int employeeId, int month, int year);
 }
 
 /// <summary>
-/// خدمة إدارة الرواتب والمدفوعات
+/// خدمة إدارة الرواتب (Snapshots & Payroll Runs)
 /// </summary>
 public interface IPayrollService
 {
-    Task<List<DTOs.PayrollReadDto>> GetAllAsync(DateTime month);
-    Task GeneratePayrollAsync(DTOs.CreatePayrollDto dto);
-    Task PaySalaryAsync(int payrollId);
+    // الحصول على كافة تشغيلات الرواتب لشهر محدد
+    Task<List<DTOs.PayrollRunReadDto>> GetPayrollRunsAsync(int month, int year);
+
+    // توليد (حساب) الرواتب وحفظها كـ Snapshot
+    Task GeneratePayrollRunAsync(int month, int year, List<int>? employeeIds = null);
+
+    // قفل (اعتماد) الرواتب لمنع التعديل وترحيلها للحسابات
+    Task LockAndPayPayrollAsync(int month, int year);
+
+    // الحصول على تفاصيل راتب محدد (Detailed Breakdown)
+    Task<DTOs.PayrollRunDetailsDto> GetPayrollDetailsAsync(int payrollRunId);
+}
+
+/// <summary>
+/// خدمة تحديد حالة الموظف في تاريخ محدد (Domain Service)
+/// </summary>
+public interface IEmployeeStatusResolver
+{
+    Task<EmployeeStatusResult> GetStatusAsync(int employeeId, DateTime date);
+    Task<List<EmployeeStatusResult>> GetMonthlyStatusAsync(int employeeId, int month, int year);
+}
+
+/// <summary>
+/// خدمة إدارة القروض والأقساط
+/// </summary>
+public interface ILoanService
+{
+    Task<DTOs.LoanReadDto> CreateLoanAsync(DTOs.CreateLoanDto dto);
+    Task<List<DTOs.LoanReadDto>> GetEmployeeLoansAsync(int employeeId);
+    Task ProcessLoanDeductionAsync(int payrollRunId, int month, int year);
+}
+
+/// <summary>
+/// خدمة سياسات الشركة
+/// </summary>
+public interface IPolicyService
+{
+    Task<string> GetPolicyValueAsync(string key, string defaultValue = "");
+    Task<T> GetPolicyValueAsync<T>(string key, T defaultValue = default!);
+    Task SetPolicyValueAsync(string key, string value, PolicyDataType dataType);
+    Task SeedDefaultPoliciesAsync(int companyId);
 }
 
 /// <summary>

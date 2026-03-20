@@ -1,6 +1,13 @@
 using AutoMapper;
 using StoreManagement.Shared.DTOs;
-using StoreManagement.Shared.Entities;
+using StoreManagement.Shared.Entities.HR;
+using StoreManagement.Shared.Entities.Inventory;
+using StoreManagement.Shared.Entities.Sales;
+using StoreManagement.Shared.Entities.Finance;
+using StoreManagement.Shared.Entities.Identity;
+using StoreManagement.Shared.Entities.Partners;
+using StoreManagement.Shared.Entities.Configuration;
+using StoreManagement.Shared.Entities.Core;
 
 namespace StoreManagement.Services.Mappings;
 
@@ -46,11 +53,34 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.ProductName,
                 opt => opt.MapFrom(src => src.Product.Name))
             .ForMember(dest => dest.Subtotal,
-                opt => opt.MapFrom(src => src.Quantity * src.UnitPrice));
+                opt => opt.MapFrom(src => (decimal)src.Quantity * src.UnitPrice));
 
         // ===== الموظف =====
         CreateMap<CreateEmployeeDto, Employee>();
         CreateMap<UpdateEmployeeDto, Employee>();
         CreateMap<Employee, EmployeeReadDto>();
+
+        // ===== الحضور =====
+        CreateMap<AttendanceCreateDto, Attendance>();
+        CreateMap<Attendance, AttendanceReadDto>()
+            .ForMember(dest => dest.EmployeeName, opt => opt.MapFrom(src => src.Employee.Name))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()));
+
+        // ===== الرواتب =====
+        CreateMap<PayrollRun, PayrollRunReadDto>()
+            .ForMember(dest => dest.EmployeeName, opt => opt.MapFrom(src => src.Employee.Name));
+        
+        CreateMap<PayrollRun, PayrollRunDetailsDto>()
+            .ForMember(dest => dest.EmployeeName, opt => opt.MapFrom(src => src.Employee.Name));
+
+        CreateMap<PayrollRunItem, PayrollRunItemReadDto>()
+            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.Type.ToString()));
+
+        // ===== القروض =====
+        CreateMap<EmployeeLoan, LoanReadDto>()
+            .ForMember(dest => dest.EmployeeName, opt => opt.MapFrom(src => src.Employee.Name))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()))
+            .ForMember(dest => dest.RemainingAmount, 
+                opt => opt.MapFrom(src => src.Installments.Where(i => !i.IsPaid).Sum(i => i.Amount)));
     }
 }

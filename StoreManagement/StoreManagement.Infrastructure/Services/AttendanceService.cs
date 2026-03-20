@@ -1,7 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
 using StoreManagement.Shared.DTOs;
-using StoreManagement.Shared.Entities;
+using StoreManagement.Shared.Entities.HR;
+using StoreManagement.Shared.Entities.Inventory;
+using StoreManagement.Shared.Entities.Sales;
+using StoreManagement.Shared.Entities.Finance;
+using StoreManagement.Shared.Entities.Identity;
+using StoreManagement.Shared.Entities.Partners;
+using StoreManagement.Shared.Entities.Configuration;
+using StoreManagement.Shared.Entities.Core;
 using StoreManagement.Shared.Enums;
 using StoreManagement.Shared.Interfaces;
 
@@ -18,31 +25,37 @@ public class AttendanceService : IAttendanceService
         _currentUser = currentUser;
     }
 
-    public async Task RecordAttendanceAsync(AttendanceRecordDto dto)
+    public async Task RecordAttendanceAsync(AttendanceCreateDto dto)
     {
+        var companyId = (int)_currentUser.CompanyId!;
+        
         var employee = await _context.Employees
-            .FirstOrDefaultAsync(e => e.Id == dto.EmployeeId && e.CompanyId == (int)_currentUser.CompanyId!)
+            .FirstOrDefaultAsync(e => e.Id == dto.EmployeeId && e.CompanyId == companyId)
             ?? throw new KeyNotFoundException($"الموظف رقم {dto.EmployeeId} غير موجود");
 
-        var record = new AttendanceRecord
-        {
-            EmployeeId = dto.EmployeeId,
-            Date = dto.Date.Date,
-            Status = (AttendanceStatus)dto.Status,
-            Notes = dto.Notes
-        };
+        var recordDate = dto.Date.Date;
 
-        var existing = await _context.AttendanceRecords
-            .FirstOrDefaultAsync(r => r.EmployeeId == dto.EmployeeId && r.Date == record.Date);
+        var existing = await _context.Attendances
+            .FirstOrDefaultAsync(a => a.EmployeeId == dto.EmployeeId && a.Date == recordDate);
 
         if (existing != null)
         {
-            existing.Status = record.Status;
-            existing.Notes = record.Notes;
+            existing.Status = dto.Status;
+            existing.WorkingHours = dto.WorkingHours;
+            existing.Notes = dto.Notes;
         }
         else
         {
-            _context.AttendanceRecords.Add(record);
+            var record = new Attendance
+            {
+                EmployeeId = dto.EmployeeId,
+                Date = recordDate,
+                Status = dto.Status,
+                WorkingHours = dto.WorkingHours,
+                Notes = dto.Notes,
+                CompanyId = companyId
+            };
+            _context.Attendances.Add(record);
         }
 
         await _context.SaveChangesAsync();
@@ -51,18 +64,38 @@ public class AttendanceService : IAttendanceService
     public async Task<List<AttendanceReadDto>> GetAllAsync(DateTime date)
     {
         var queryDate = date.Date;
+        var companyId = (int)_currentUser.CompanyId!;
 
-        return await _context.AttendanceRecords
-            .Include(r => r.Employee)
-            .Where(r => r.Date == queryDate && r.Employee.CompanyId == (int)_currentUser.CompanyId!)
-            .Select(r => new AttendanceReadDto
+        return await _context.Attendances
+            .Include(a => a.Employee)
+            .Where(a => a.Date == queryDate && a.CompanyId == companyId)
+            .Select(a => new AttendanceReadDto
             {
-                Id = r.Id,
-                EmployeeId = r.EmployeeId,
-                EmployeeName = r.Employee.Name,
-                Status = r.Status.ToString(),
-                Date = r.Date,
-                Notes = r.Notes
+                Id = a.Id,
+                EmployeeId = a.EmployeeId,
+                EmployeeName = a.Employee.Name,
+                Status = a.Status.ToString(),
+                Date = a.Date,
+                WorkingHours = a.WorkingHours,
+                Notes = a.Notes
+            })
+            .ToListAsync();
+    }
+
+    public async Task<List<AttendanceReadDto>> GetEmployeeAttendanceAsync(int employeeId, int month, int year)
+    {
+        var companyId = (int)_currentUser.CompanyId!;
+
+        return await _context.Attendances
+            .Where(a => a.EmployeeId == employeeId && a.Date.Month == month && a.Date.Year == year && a.CompanyId == companyId)
+            .Select(a => new AttendanceReadDto
+            {
+                Id = a.Id,
+                EmployeeId = a.EmployeeId,
+                Status = a.Status.ToString(),
+                Date = a.Date,
+                WorkingHours = a.WorkingHours,
+                Notes = a.Notes
             })
             .ToListAsync();
     }
