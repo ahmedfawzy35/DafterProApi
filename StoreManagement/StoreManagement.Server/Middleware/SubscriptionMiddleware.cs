@@ -6,7 +6,7 @@ namespace StoreManagement.Server.Middleware;
 
 /// <summary>
 /// Middleware التحقق من صلاحية الاشتراك - يعمل بعد Authentication مباشرة
-/// يرجع 403 Forbidden إذا الاشتراك منتهٍ
+/// يرجع 403 Forbidden إذا الاشتراك منته
 /// </summary>
 public class SubscriptionMiddleware
 {
@@ -14,7 +14,7 @@ public class SubscriptionMiddleware
     private readonly ILogger<SubscriptionMiddleware> _logger;
 
     private static readonly string[] _exemptPaths =
-        ["/api/v1/auth", "/health", "/swagger", "/hangfire", "/api/v1/subscriptions"];
+        ["/api/v1/auth", "/health", "/swagger", "/hangfire", "/api/v1/subscriptions", "/api/v1/company/my"];
 
     public SubscriptionMiddleware(
         RequestDelegate next,
@@ -50,23 +50,23 @@ public class SubscriptionMiddleware
         }
 
         var companyId = currentUser.CompanyId;
-        if (companyId <= 0)
+        if (companyId <= 0 || companyId == null)
         {
             await _next(context);
             return;
         }
 
         // التحقق من صلاحية الاشتراك
-        var isActive = await subscriptionService.IsSubscriptionActiveAsync(companyId);
+        var isActive = await subscriptionService.IsSubscriptionActiveAsync(companyId.Value);
 
         if (!isActive)
         {
-            _logger.LogWarning("اشتراك منتهٍ للشركة {CompanyId}", companyId);
+            _logger.LogWarning("اشتراك منته للشركة {CompanyId}", companyId);
 
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json";
 
-            var response = ApiResponse<object>.Failure("اشتراك الشركة منتهٍ. يرجى تجديد الاشتراك للمتابعة");
+            var response = ApiResponse<object>.Failure("اشتراك الشركة منته. يرجى تجديد الاشتراك للمتابعة");
             await context.Response.WriteAsync(JsonSerializer.Serialize(response,
                 new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
             return;

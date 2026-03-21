@@ -1,4 +1,4 @@
-using Asp.Versioning;
+﻿using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -67,7 +67,7 @@ public class SuppliersController : ControllerBase
     [Authorize(Roles = "Admin,Accountant")]
     public async Task<ActionResult<ApiResponse<SupplierReadDto>>> Create([FromBody] CreateSupplierDto dto)
     {
-        var supplier = new Supplier { Name = dto.Name, CompanyId = _currentUser.CompanyId };
+        var supplier = new Supplier { Name = dto.Name, CompanyId = _currentUser.CompanyId.Value };
 
         foreach (var phone in dto.Phones)
             supplier.Phones.Add(new SupplierPhone { PhoneNumber = phone });
@@ -110,4 +110,5 @@ public class SuppliersController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResult("تم حذف المورد بنجاح"));
     }
 }
+
 

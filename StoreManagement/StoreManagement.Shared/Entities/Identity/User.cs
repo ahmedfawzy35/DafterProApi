@@ -7,11 +7,14 @@ namespace StoreManagement.Shared.Entities.Identity;
 /// </summary>
 public class User : IdentityUser<int>
 {
-    // معرف الشركة التابع لها المستخدم
-    public int CompanyId { get; set; }
+    // تحديد ما إذا كان المستخدم يتبع للمنصة (Platform) أم لشركة (Tenant)
+    public bool IsPlatformUser { get; set; } = false;
+
+    // معرف الشركة التابع لها المستخدم (اختياري لمستخدمي المنصة)
+    public int? CompanyId { get; set; }
 
     // علاقة بالشركة
-    public Company Company { get; set; } = null!;
+    public Company? Company { get; set; }
 
     // معرف الفرع (اختياري)
     public int? BranchId { get; set; }

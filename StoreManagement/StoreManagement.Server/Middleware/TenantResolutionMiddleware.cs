@@ -38,9 +38,11 @@ public class TenantResolutionMiddleware
         // التحقق من وجود المستخدم مصادق عليه
         if (context.User?.Identity?.IsAuthenticated == true)
         {
-            var companyIdClaim = context.User.FindFirst("CompanyId")?.Value;
+            var companyIdClaim = context.User.FindFirst("CompanyId")?.Value ?? context.User.FindFirst("companyId")?.Value;
+            var isPlatformClaim = context.User.FindFirst("isPlatformUser")?.Value ?? context.User.FindFirst("IsPlatformUser")?.Value;
+            var isPlatformUser = isPlatformClaim == "1";
 
-            if (string.IsNullOrWhiteSpace(companyIdClaim) || !int.TryParse(companyIdClaim, out var companyId))
+            if (!isPlatformUser && (string.IsNullOrWhiteSpace(companyIdClaim) || !int.TryParse(companyIdClaim, out var companyId)))
             {
                 _logger.LogWarning("طلب مرفوض: CompanyId غير موجود في الـ JWT للمستخدم {User}",
                     context.User.FindFirst(ClaimTypes.Email)?.Value);
@@ -49,10 +51,23 @@ public class TenantResolutionMiddleware
                 return;
             }
 
-            // تخزين CompanyId في HttpContext.Items للوصول السريع
-            context.Items["CompanyId"] = companyId;
+            if (int.TryParse(companyIdClaim, out var parsedCompanyId))
+            {
+                context.Items["CompanyId"] = parsedCompanyId;
+                _logger.LogDebug("تم تحديد الـ Tenant: CompanyId={CompanyId}", parsedCompanyId);
+            }
+            context.Items["IsPlatformUser"] = isPlatformUser;
 
-            _logger.LogDebug("تم تحديد الـ Tenant: CompanyId={CompanyId}", companyId);
+            var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            // إثراء السجلات بالمعلومات الحالية (Request Logging)
+            using (Serilog.Context.LogContext.PushProperty("UserId", userId))
+            using (Serilog.Context.LogContext.PushProperty("CompanyId", companyIdClaim))
+            using (Serilog.Context.LogContext.PushProperty("IsPlatformUser", isPlatformUser))
+            {
+                await _next(context);
+                return; // تأكد من الخروج بعد استدعاء next داخل using block
+            }
         }
 
         await _next(context);

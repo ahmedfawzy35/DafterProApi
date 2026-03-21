@@ -23,10 +23,21 @@ public class CompanyController : ControllerBase
         _companyService = companyService;
     }
 
+    [HttpGet]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<CompanyReadDto>>>> GetAll()
+    {
+        var result = await _companyService.GetAllAsync();
+        return Ok(ApiResponse<IEnumerable<CompanyReadDto>>.SuccessResult(result));
+    }
+
     [HttpGet("my")]
     public async Task<ActionResult<ApiResponse<CompanyReadDto>>> GetMyCompany([FromQuery] bool includeLogo = false)
     {
         var result = await _companyService.GetMyCompanyAsync(includeLogo);
+        if (result == null)
+            return NotFound(ApiResponse<CompanyReadDto>.Failure("الشركة غير موجودة أو المستخدم غير مرتبط بشركة"));
+            
         return Ok(ApiResponse<CompanyReadDto>.SuccessResult(result));
     }
 

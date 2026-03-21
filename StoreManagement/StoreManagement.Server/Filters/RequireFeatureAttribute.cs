@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.Interfaces;
@@ -38,7 +38,7 @@ public class RequireFeatureAttribute : Attribute, IAsyncActionFilter
             return;
         }
 
-        var isEnabled = await featureService.IsFeatureEnabledAsync(companyId, _featureKey);
+        var isEnabled = await featureService.IsFeatureEnabledAsync(companyId.Value, _featureKey);
 
         if (!isEnabled)
         {
@@ -53,3 +53,4 @@ public class RequireFeatureAttribute : Attribute, IAsyncActionFilter
         await next();
     }
 }
+

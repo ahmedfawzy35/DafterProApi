@@ -287,9 +287,12 @@ public class AuthController : ControllerBase
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.UserName ?? string.Empty),
             new(ClaimTypes.Email, user.Email ?? string.Empty),
-            new("CompanyId", user.CompanyId.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("isPlatformUser", user.IsPlatformUser ? "1" : "0")
         };
+
+        if (user.CompanyId.HasValue)
+            claims.Add(new Claim("companyId", user.CompanyId.Value.ToString()));
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 

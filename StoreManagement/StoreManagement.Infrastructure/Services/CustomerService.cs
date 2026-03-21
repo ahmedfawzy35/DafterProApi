@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.DTOs;
@@ -80,7 +80,7 @@ public class CustomerService : ICustomerService
         var customer = new Customer
         {
             Name = dto.Name,
-            CompanyId = _currentUser.CompanyId
+            CompanyId = _currentUser.CompanyId!.Value
         };
 
         foreach (var phone in dto.Phones)
@@ -121,3 +121,5 @@ public class CustomerService : ICustomerService
         await _context.SaveChangesAsync();
     }
 }
+
+

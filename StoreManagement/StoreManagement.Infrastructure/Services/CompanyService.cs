@@ -25,10 +25,20 @@ public class CompanyService : ICompanyService
         _currentUser = currentUser;
     }
 
-    public async Task<CompanyReadDto> GetMyCompanyAsync(bool includeLogo = false)
+    public async Task<List<CompanyReadDto>> GetAllAsync()
+    {
+        var companies = await _context.Companies
+            .Include(c => c.PhoneNumbers)
+            .Include(c => c.Logo)
+            .ToListAsync();
+
+        return companies.Select(MapToDto).ToList();
+    }
+
+    public async Task<CompanyReadDto?> GetMyCompanyAsync(bool includeLogo = false)
     {
         var companyId = _currentUser.CompanyId;
-        if (companyId == 0) throw new UnauthorizedAccessException("المستخدم غير مرتبط بشركة");
+        if (!companyId.HasValue) return null;
 
         var query = _context.Companies
             .Include(c => c.PhoneNumbers)
@@ -40,8 +50,9 @@ public class CompanyService : ICompanyService
         }
 
         var company = await query
-            .FirstOrDefaultAsync(c => c.Id == (int)companyId)
-            ?? throw new KeyNotFoundException("الشركة غير موجودة");
+            .FirstOrDefaultAsync(c => c.Id == (int)companyId);
+
+        if (company == null) return null;
 
         return MapToDto(company);
     }
@@ -79,7 +90,7 @@ public class CompanyService : ICompanyService
     public async Task UpdateMyCompanyAsync(CompanyUpdateDto dto)
     {
         var companyId = _currentUser.CompanyId;
-        if (companyId == 0) throw new UnauthorizedAccessException("المستخدم غير مرتبط بشركة");
+        if (!companyId.HasValue) throw new UnauthorizedAccessException("المستخدم غير مرتبط بشركة");
 
         var company = await _context.Companies
             .Include(c => c.PhoneNumbers)
@@ -106,7 +117,7 @@ public class CompanyService : ICompanyService
     public async Task UploadLogoAsync(byte[] logoContent, string contentType)
     {
         var companyId = _currentUser.CompanyId;
-        if (companyId == 0) throw new UnauthorizedAccessException("المستخدم غير مرتبط بشركة");
+        if (!companyId.HasValue) throw new UnauthorizedAccessException("المستخدم غير مرتبط بشركة");
 
         // التحقق من حجم الملف (الحد الأقصى 2 ميجابايت)
         if (logoContent.Length > 2 * 1024 * 1024)

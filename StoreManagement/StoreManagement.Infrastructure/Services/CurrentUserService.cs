@@ -30,12 +30,26 @@ public class CurrentUserService : ICurrentUserService
     }
 
     // معرف الشركة من الـ Claims (عنصر أساسي في عزل البيانات)
-    public int CompanyId
+    public int? CompanyId
     {
         get
         {
-            var companyIdClaim = User?.FindFirst("CompanyId")?.Value;
-            return int.TryParse(companyIdClaim, out var id) ? id : 0;
+            var companyIdClaim = User?.FindFirst("companyId")?.Value 
+                                 ?? User?.FindFirst("CompanyId")?.Value;
+            return int.TryParse(companyIdClaim, out var id) ? id : null;
+        }
+    }
+
+    // معرف النطاق المؤقت لمدير النظام الأساسي (يُعين في الـ Action Filter)
+    public int? ScopedCompanyId { get; set; }
+
+    // هل المستخدم منصة
+    public bool IsPlatformUser
+    {
+        get
+        {
+            var platformClaim = User?.FindFirst("isPlatformUser")?.Value;
+            return platformClaim == "1";
         }
     }
 

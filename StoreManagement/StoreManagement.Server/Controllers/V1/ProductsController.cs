@@ -1,4 +1,4 @@
-using Asp.Versioning;
+﻿using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -112,7 +112,7 @@ public class ProductsController : ControllerBase
     public async Task<ActionResult<ApiResponse<ProductReadDto>>> GetByBarcode(string barcode)
     {
         // تأكيد إضافي للأمان (Multi-Tenant) حتى مع وجود Global Filters
-        var companyId = _currentUser.CompanyId;
+        var companyId = _currentUser.CompanyId.Value;
         
         var product = await _context.Products
             .Include(p => p.ProductImages)
@@ -131,7 +131,7 @@ public class ProductsController : ControllerBase
     [Authorize(Roles = "Admin,Warehouse")]
     public async Task<ActionResult<ApiResponse<ProductReadDto>>> Create([FromBody] CreateProductDto dto)
     {
-        var companyId = _currentUser.CompanyId;
+        var companyId = _currentUser.CompanyId.Value;
 
         // تحديد الباركود والصيغة
         string barcode;
@@ -273,7 +273,7 @@ public class ProductsController : ControllerBase
     [HttpGet("{id:int}/label")]
     public async Task<ActionResult<ApiResponse<ProductLabelDto>>> GetLabel(int id)
     {
-        var companyId = _currentUser.CompanyId;
+        var companyId = _currentUser.CompanyId.Value;
         
         var companyCurrency = await _context.Companies
             .Where(c => c.Id == companyId)
@@ -393,3 +393,5 @@ public class ProductsController : ControllerBase
         return _barcodeService.GenerateEan13(companyId, DateTime.UtcNow.Ticks % 100000);
     }
 }
+
+

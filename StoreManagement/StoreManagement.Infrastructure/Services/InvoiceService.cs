@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.DTOs;
@@ -131,7 +131,7 @@ public class InvoiceService : IInvoiceService
                 CustomerId = dto.CustomerId, SupplierId = dto.SupplierId,
                 Date = dto.Date, Discount = dto.Discount, Paid = dto.Paid,
                 IsInstallment = dto.IsInstallment, Notes = dto.Notes,
-                CompanyId = _currentUser.CompanyId
+                CompanyId = _currentUser.CompanyId!.Value
             };
 
             decimal totalValue = 0;
@@ -232,3 +232,5 @@ public class InvoiceService : IInvoiceService
         await _context.SaveChangesAsync();
     }
 }
+
+

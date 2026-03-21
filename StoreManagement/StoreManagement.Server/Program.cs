@@ -95,7 +95,13 @@ builder.Services.AddAuthentication(options =>
 });
 
 // ===== Authorization Policies (Claims-Based Permissions) =====
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, StoreManagement.Server.Authorization.PlatformUserHandler>();
+
 builder.Services.AddAuthorizationBuilder()
+    // سياسة وصول المنصة
+    .AddPolicy("PlatformUserOnly", policy => 
+        policy.Requirements.Add(new StoreManagement.Server.Authorization.PlatformUserRequirement()))
+    // صلاحيات النظام
     .AddPolicy("RequirePermission:settings.roles",
         p => p.RequireClaim("permission", "settings.roles"))
     .AddPolicy("RequirePermission:settings.users",

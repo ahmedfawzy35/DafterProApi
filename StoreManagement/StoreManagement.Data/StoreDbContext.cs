@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data.Interceptors;
 using StoreManagement.Shared.Entities.HR;
@@ -94,65 +94,65 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         // ===== عوامل التصفية الشاملة (Global Query Filters) =====
         // تصفية العملاء حسب الشركة وعدم الحذف
         builder.Entity<Customer>()
-            .HasQueryFilter(c => !c.IsDeleted && c.CompanyId == companyId);
+            .HasQueryFilter(c => !c.IsDeleted && ((!_currentUserService.IsPlatformUser && c.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || c.CompanyId == _currentUserService.ScopedCompanyId))));
 
         // تصفية الموردين
         builder.Entity<Supplier>()
-            .HasQueryFilter(s => !s.IsDeleted && s.CompanyId == companyId);
+            .HasQueryFilter(s => !s.IsDeleted && ((!_currentUserService.IsPlatformUser && s.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || s.CompanyId == _currentUserService.ScopedCompanyId))));
 
         // تصفية المنتجات
         builder.Entity<Product>()
-            .HasQueryFilter(p => !p.IsDeleted && p.CompanyId == companyId);
+            .HasQueryFilter(p => !p.IsDeleted && ((!_currentUserService.IsPlatformUser && p.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || p.CompanyId == _currentUserService.ScopedCompanyId))));
 
         // تصفية الفواتير
         builder.Entity<Invoice>()
-            .HasQueryFilter(i => !i.IsDeleted && i.CompanyId == companyId);
+            .HasQueryFilter(i => !i.IsDeleted && ((!_currentUserService.IsPlatformUser && i.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || i.CompanyId == _currentUserService.ScopedCompanyId))));
 
         // تصفية المعاملات النقدية
         builder.Entity<CashTransaction>()
-            .HasQueryFilter(t => !t.IsDeleted && t.CompanyId == companyId);
+            .HasQueryFilter(t => !t.IsDeleted && ((!_currentUserService.IsPlatformUser && t.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || t.CompanyId == _currentUserService.ScopedCompanyId))));
 
         // تصفية التسويات
         builder.Entity<AccountSettlement>()
-            .HasQueryFilter(s => !s.IsDeleted && s.CompanyId == companyId);
+            .HasQueryFilter(s => !s.IsDeleted && ((!_currentUserService.IsPlatformUser && s.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || s.CompanyId == _currentUserService.ScopedCompanyId))));
 
         // تصفية الموظفين وتوابعهم
         builder.Entity<Employee>()
-            .HasQueryFilter(e => !e.IsDeleted && e.CompanyId == companyId);
+            .HasQueryFilter(e => !e.IsDeleted && ((!_currentUserService.IsPlatformUser && e.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || e.CompanyId == _currentUserService.ScopedCompanyId))));
 
         builder.Entity<Attendance>()
-            .HasQueryFilter(a => !a.IsDeleted && a.CompanyId == companyId);
+            .HasQueryFilter(a => !a.IsDeleted && ((!_currentUserService.IsPlatformUser && a.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || a.CompanyId == _currentUserService.ScopedCompanyId))));
 
         builder.Entity<EmployeeAction>()
-            .HasQueryFilter(a => !a.IsDeleted && a.CompanyId == companyId);
+            .HasQueryFilter(a => !a.IsDeleted && ((!_currentUserService.IsPlatformUser && a.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || a.CompanyId == _currentUserService.ScopedCompanyId))));
 
         builder.Entity<EmployeeSalary>()
-            .HasQueryFilter(s => !s.IsDeleted && s.CompanyId == companyId);
+            .HasQueryFilter(s => !s.IsDeleted && ((!_currentUserService.IsPlatformUser && s.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || s.CompanyId == _currentUserService.ScopedCompanyId))));
 
         builder.Entity<SalaryAdjustment>()
-            .HasQueryFilter(s => !s.IsDeleted && s.CompanyId == companyId);
+            .HasQueryFilter(s => !s.IsDeleted && ((!_currentUserService.IsPlatformUser && s.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || s.CompanyId == _currentUserService.ScopedCompanyId))));
 
         builder.Entity<RecurringAdjustment>()
-            .HasQueryFilter(s => !s.IsDeleted && s.CompanyId == companyId);
+            .HasQueryFilter(s => !s.IsDeleted && ((!_currentUserService.IsPlatformUser && s.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || s.CompanyId == _currentUserService.ScopedCompanyId))));
 
         builder.Entity<EmployeeLoan>()
-            .HasQueryFilter(l => !l.IsDeleted && l.CompanyId == companyId);
+            .HasQueryFilter(l => !l.IsDeleted && ((!_currentUserService.IsPlatformUser && l.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || l.CompanyId == _currentUserService.ScopedCompanyId))));
 
         builder.Entity<LoanInstallment>()
-            .HasQueryFilter(i => !i.IsDeleted && i.CompanyId == companyId);
+            .HasQueryFilter(i => !i.IsDeleted && ((!_currentUserService.IsPlatformUser && i.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || i.CompanyId == _currentUserService.ScopedCompanyId))));
 
         builder.Entity<PayrollRun>()
-            .HasQueryFilter(p => !p.IsDeleted && p.CompanyId == companyId);
+            .HasQueryFilter(p => !p.IsDeleted && ((!_currentUserService.IsPlatformUser && p.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || p.CompanyId == _currentUserService.ScopedCompanyId))));
 
         builder.Entity<PayrollRunItem>()
-            .HasQueryFilter(p => !p.IsDeleted && p.CompanyId == companyId);
+            .HasQueryFilter(p => !p.IsDeleted && ((!_currentUserService.IsPlatformUser && p.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || p.CompanyId == _currentUserService.ScopedCompanyId))));
 
         builder.Entity<CompanyPolicy>()
-            .HasQueryFilter(p => !p.IsDeleted && p.CompanyId == companyId);
+            .HasQueryFilter(p => !p.IsDeleted && ((!_currentUserService.IsPlatformUser && p.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || p.CompanyId == _currentUserService.ScopedCompanyId))));
 
         // تصفية حركات المخزون
         builder.Entity<StockTransaction>()
-            .HasQueryFilter(st => !st.IsDeleted && st.CompanyId == companyId);
+            .HasQueryFilter(st => !st.IsDeleted && ((!_currentUserService.IsPlatformUser && st.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || st.CompanyId == _currentUserService.ScopedCompanyId))));
 
         // تصفية الشركات (Soft Delete)
         builder.Entity<Company>()
@@ -368,3 +368,5 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         base.OnConfiguring(optionsBuilder);
     }
 }
+
+

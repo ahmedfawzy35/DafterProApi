@@ -8,6 +8,17 @@ namespace StoreManagement.Shared.Constants;
 /// </summary>
 public static class Permissions
 {
+    // ===== إدارة المنصة (Platform) =====
+    public static class Platform
+    {
+        public const string ViewCompanies       = "platform.companies.view";
+        public const string ManageCompanies     = "platform.companies.manage";
+        public const string ViewSubscriptions   = "platform.subscriptions.view";
+        public const string ManageSubscriptions = "platform.subscriptions.manage";
+
+        public static readonly string[] All = new[] { ViewCompanies, ManageCompanies, ViewSubscriptions, ManageSubscriptions };
+    }
+
     // ===== الموظفون =====
     public static class Employees
     {
@@ -125,8 +136,8 @@ public static class Permissions
         public static readonly string[] All = new[] { General, Users, Roles, Billing, Branches };
     }
 
-    // ===== قائمة كل الصلاحيات في النظام =====
-    public static string[] GetAll() =>
+    // ===== جميع صلاحيات المستأجر (Tenant) =====
+    public static string[] GetAllTenant() =>
         Employees.All
             .Concat(Attendance.All)
             .Concat(Sales.All)
@@ -140,10 +151,17 @@ public static class Permissions
             .Concat(Settings.All)
             .ToArray();
 
+    // ===== قائمة كل الصلاحيات في النظام (Platform + Tenant) =====
+    public static string[] GetAll() =>
+        Platform.All
+            .Concat(GetAllTenant())
+            .ToArray();
+
     // ===== الصلاحيات الافتراضية لكل دور =====
     public static string[] GetForRole(string roleName) => roleName switch
     {
-        DefaultRoles.Owner => GetAll(), // المالك — كل الصلاحيات
+        DefaultRoles.SuperAdmin => Platform.All, // مدير النظام الأساسي — صلاحيات المنصة فقط
+        DefaultRoles.Owner => GetAllTenant(), // المالك — كل صلاحيات المستأجر
         DefaultRoles.Manager =>
             Employees.All
             .Concat(Attendance.All)
@@ -176,11 +194,23 @@ public static class Permissions
 /// </summary>
 public static class DefaultRoles
 {
+    public const string SuperAdmin     = "SuperAdmin";
     public const string Owner          = "Owner";
     public const string Manager        = "Manager";
     public const string Accountant     = "Accountant";
     public const string Sales          = "Sales";
     public const string InventoryClerk = "InventoryClerk";
 
-    public static readonly string[] All = new[] { Owner, Manager, Accountant, Sales, InventoryClerk };
+    public static readonly string[] PlatformRoles = new[] { SuperAdmin };
+    public static readonly string[] TenantRoles = new[] { Owner, Manager, Accountant, Sales, InventoryClerk };
+    
+    public static readonly string[] All = PlatformRoles.Concat(TenantRoles).ToArray();
+}
+
+public class PermissionDefinition
+{
+    public string Name { get; set; } = string.Empty;
+    public string Module { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool IsPlatform { get; set; }
 }

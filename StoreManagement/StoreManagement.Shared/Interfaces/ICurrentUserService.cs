@@ -8,8 +8,14 @@ public interface ICurrentUserService
     // معرف المستخدم الحالي
     int? UserId { get; }
 
-    // معرف شركة المستخدم الحالي
-    int CompanyId { get; }
+    // معرف شركة المستخدم الحالي (من الـ Token)
+    int? CompanyId { get; }
+
+    // معرف الشركة المحدد للـ Platform User بشكل صريح لمحدودية النطاق (Scoped Company)
+    int? ScopedCompanyId { get; set; }
+
+    // هل المستخدم تابع للمنصة؟
+    bool IsPlatformUser { get; }
 
     // اسم المستخدم
     string? UserName { get; }

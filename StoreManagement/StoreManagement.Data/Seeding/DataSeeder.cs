@@ -88,6 +88,25 @@ public static class DataSeeder
         StoreDbContext context,
         UserManager<User> userManager)
     {
+        // ====== إنشاء SuperAdmin (Platform) مستقل ======
+        if (await userManager.FindByEmailAsync("superadmin@platform.com") is null)
+        {
+            var superAdmin = new User
+            {
+                UserName = "superadmin@platform.com",
+                Email = "superadmin@platform.com",
+                CompanyId = null,
+                IsPlatformUser = true,
+                EmailConfirmed = true
+            };
+
+            var saResult = await userManager.CreateAsync(superAdmin, "SuperAdmin@123!");
+            if (saResult.Succeeded)
+            {
+                await userManager.AddToRoleAsync(superAdmin, StoreManagement.Shared.Constants.DefaultRoles.SuperAdmin);
+            }
+        }
+
         // التحقق من عدم وجود شركة مسبقاً
         if (await context.Companies.IgnoreQueryFilters().AnyAsync())
             return;
@@ -104,22 +123,23 @@ public static class DataSeeder
         await context.SaveChangesAsync();
 
         // التحقق من عدم وجود مستخدم مسبقاً
-        if (await userManager.FindByEmailAsync("admin@store.com") is not null)
-            return;
-
-        // إنشاء مستخدم المشرف العام
-        var admin = new User
+        if (await userManager.FindByEmailAsync("admin@store.com") is null)
         {
-            UserName = "admin@store.com",
-            Email = "admin@store.com",
-            CompanyId = company.Id,
-            EmailConfirmed = true
-        };
+            // إنشاء مستخدم المشرف العام (Tenant)
+            var admin = new User
+            {
+                UserName = "admin@store.com",
+                Email = "admin@store.com",
+                CompanyId = company.Id,
+                IsPlatformUser = false,
+                EmailConfirmed = true
+            };
 
-        var result = await userManager.CreateAsync(admin, "Admin@123456");
-        if (result.Succeeded)
-        {
-            await userManager.AddToRoleAsync(admin, StoreManagement.Shared.Constants.DefaultRoles.Owner);
+            var result = await userManager.CreateAsync(admin, "Admin@123456");
+            if (result.Succeeded)
+            {
+                await userManager.AddToRoleAsync(admin, StoreManagement.Shared.Constants.DefaultRoles.Owner);
+            }
         }
     }
 
@@ -158,6 +178,7 @@ public static class DataSeeder
 
     private static string GetRoleDescription(string roleName) => roleName switch
     {
+        StoreManagement.Shared.Constants.DefaultRoles.SuperAdmin => "مدير النظام الأساسي - إدارة المنصة",
         StoreManagement.Shared.Constants.DefaultRoles.Owner => "مالك الشركة - صلاحيات كاملة",
         StoreManagement.Shared.Constants.DefaultRoles.Manager => "مدير الشركة - إدارة الكيانات الرئيسية",
         StoreManagement.Shared.Constants.DefaultRoles.Accountant => "محاسب - إدارة الفواتير والمعاملات المالية",

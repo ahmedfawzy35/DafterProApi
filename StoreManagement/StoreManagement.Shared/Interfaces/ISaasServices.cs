@@ -238,7 +238,8 @@ public interface IPluginService
 /// </summary>
 public interface ICompanyService
 {
-    Task<DTOs.CompanyReadDto> GetMyCompanyAsync(bool includeLogo = false);
+    Task<List<DTOs.CompanyReadDto>> GetAllAsync();
+    Task<DTOs.CompanyReadDto?> GetMyCompanyAsync(bool includeLogo = false);
     Task<DTOs.CompanyReadDto> CreateAsync(DTOs.CompanyCreateDto dto);
     Task UpdateMyCompanyAsync(DTOs.CompanyUpdateDto dto);
     Task UploadLogoAsync(byte[] logoContent, string contentType);
