@@ -270,9 +270,10 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DataSeeder");
 
     await context.Database.MigrateAsync();
-    await DataSeeder.SeedAsync(context, userManager, roleManager);
+    await DataSeeder.SeedAsync(context, userManager, roleManager, logger);
 }
 
 // ===== Middleware Pipeline (الترتيب مهم جداً) =====

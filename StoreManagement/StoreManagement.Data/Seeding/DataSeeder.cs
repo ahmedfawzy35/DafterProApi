@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using StoreManagement.Shared.Entities;
 
 namespace StoreManagement.Data.Seeding;
@@ -12,10 +13,11 @@ public static class DataSeeder
     public static async Task SeedAsync(
         StoreDbContext context,
         UserManager<User> userManager,
-        RoleManager<Role> roleManager)
+        RoleManager<Role> roleManager,
+        Microsoft.Extensions.Logging.ILogger logger)
     {
         // إنشاء الأدوار الافتراضية
-        await SeedRolesAsync(roleManager);
+        await SeedRolesAsync(roleManager, logger);
 
         // إنشاء شركة ومستخدم مشرف افتراضي
         await SeedDefaultCompanyAndAdminAsync(context, userManager);
@@ -26,20 +28,58 @@ public static class DataSeeder
         await context.SaveChangesAsync();
     }
 
-    private static async Task SeedRolesAsync(RoleManager<Role> roleManager)
+    private static async Task SeedRolesAsync(RoleManager<Role> roleManager, Microsoft.Extensions.Logging.ILogger logger)
     {
         // الأدوار الوظيفية الافتراضية
-        string[] roles = ["SuperAdmin", "Admin", "Accountant", "Sales", "Warehouse"];
-
-        foreach (var roleName in roles)
+        foreach (var roleName in StoreManagement.Shared.Constants.DefaultRoles.All)
         {
-            if (!await roleManager.RoleExistsAsync(roleName))
+            var role = await EnsureRoleExistsAsync(roleManager, roleName, logger);
+            await SyncRolePermissionsAsync(roleManager, role, roleName, logger);
+        }
+    }
+
+    private static async Task<Role> EnsureRoleExistsAsync(RoleManager<Role> roleManager, string roleName, Microsoft.Extensions.Logging.ILogger logger)
+    {
+        var role = await roleManager.FindByNameAsync(roleName);
+        if (role == null)
+        {
+            role = new Role
             {
-                await roleManager.CreateAsync(new Role
+                Name = roleName,
+                Description = GetRoleDescription(roleName)
+            };
+            var result = await roleManager.CreateAsync(role);
+            if (result.Succeeded)
+            {
+                logger.LogInformation("Role created successfully: {RoleName}", roleName);
+            }
+            else
+            {
+                logger.LogError("Error creating role {RoleName}: {Errors}", roleName, string.Join(", ", result.Errors.Select(e => e.Description)));
+            }
+        }
+        return role!;
+    }
+
+    private static async Task SyncRolePermissionsAsync(RoleManager<Role> roleManager, Role role, string roleName, Microsoft.Extensions.Logging.ILogger logger)
+    {
+        var expectedPermissions = StoreManagement.Shared.Constants.Permissions.GetForRole(roleName);
+        var currentClaims = await roleManager.GetClaimsAsync(role);
+        var currentPermissions = currentClaims.Select(c => c.Value).ToHashSet();
+
+        foreach (var permission in expectedPermissions)
+        {
+            if (!currentPermissions.Contains(permission))
+            {
+                var result = await roleManager.AddClaimAsync(role, new System.Security.Claims.Claim("permission", permission));
+                if (result.Succeeded)
                 {
-                    Name = roleName,
-                    Description = GetRoleDescription(roleName)
-                });
+                    logger.LogInformation("Permission '{Permission}' added to role '{RoleName}'.", permission, roleName);
+                }
+                else
+                {
+                    logger.LogError("Failed to add permission '{Permission}' to role '{RoleName}'.", permission, roleName);
+                }
             }
         }
     }
@@ -79,7 +119,7 @@ public static class DataSeeder
         var result = await userManager.CreateAsync(admin, "Admin@123456");
         if (result.Succeeded)
         {
-            await userManager.AddToRoleAsync(admin, "SuperAdmin");
+            await userManager.AddToRoleAsync(admin, StoreManagement.Shared.Constants.DefaultRoles.Owner);
         }
     }
 
@@ -118,11 +158,11 @@ public static class DataSeeder
 
     private static string GetRoleDescription(string roleName) => roleName switch
     {
-        "SuperAdmin" => "مشرف عام - صلاحيات كاملة",
-        "Admin" => "مدير الشركة - إدارة الكيانات الرئيسية",
-        "Accountant" => "محاسب - إدارة الفواتير والمعاملات المالية",
-        "Sales" => "موظف مبيعات - إنشاء فواتير المبيعات",
-        "Warehouse" => "أمين المستودع - إدارة المخزون",
+        StoreManagement.Shared.Constants.DefaultRoles.Owner => "مالك الشركة - صلاحيات كاملة",
+        StoreManagement.Shared.Constants.DefaultRoles.Manager => "مدير الشركة - إدارة الكيانات الرئيسية",
+        StoreManagement.Shared.Constants.DefaultRoles.Accountant => "محاسب - إدارة الفواتير والمعاملات المالية",
+        StoreManagement.Shared.Constants.DefaultRoles.Sales => "موظف مبيعات - إنشاء فواتير المبيعات",
+        StoreManagement.Shared.Constants.DefaultRoles.InventoryClerk => "أمين المستودع - إدارة المخزون",
         _ => string.Empty
     };
 }

@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace StoreManagement.Shared.Constants;
 
 /// <summary>
@@ -16,7 +18,7 @@ public static class Permissions
         public const string Payroll = "employees.payroll";
         public const string Loans   = "employees.loans";
 
-        public static readonly string[] All = [View, Create, Edit, Delete, Payroll, Loans];
+        public static readonly string[] All = new[] { View, Create, Edit, Delete, Payroll, Loans };
     }
 
     // ===== الحضور والغياب =====
@@ -25,7 +27,7 @@ public static class Permissions
         public const string View   = "attendance.view";
         public const string Record = "attendance.record";
 
-        public static readonly string[] All = [View, Record];
+        public static readonly string[] All = new[] { View, Record };
     }
 
     // ===== المبيعات والفواتير =====
@@ -36,7 +38,7 @@ public static class Permissions
         public const string Delete = "sales.delete";
         public const string Refund = "sales.refund";
 
-        public static readonly string[] All = [View, Create, Delete, Refund];
+        public static readonly string[] All = new[] { View, Create, Delete, Refund };
     }
 
     // ===== المشتريات =====
@@ -46,7 +48,7 @@ public static class Permissions
         public const string Create = "purchases.create";
         public const string Return = "purchases.return";
 
-        public static readonly string[] All = [View, Create, Return];
+        public static readonly string[] All = new[] { View, Create, Return };
     }
 
     // ===== المنتجات والمخزون =====
@@ -58,7 +60,7 @@ public static class Permissions
         public const string Delete           = "inventory.delete";
         public const string StockAdjustment  = "inventory.stock_adjustment";
 
-        public static readonly string[] All = [View, Create, Edit, Delete, StockAdjustment];
+        public static readonly string[] All = new[] { View, Create, Edit, Delete, StockAdjustment };
     }
 
     // ===== العملاء =====
@@ -69,7 +71,7 @@ public static class Permissions
         public const string Edit   = "customers.edit";
         public const string Delete = "customers.delete";
 
-        public static readonly string[] All = [View, Create, Edit, Delete];
+        public static readonly string[] All = new[] { View, Create, Edit, Delete };
     }
 
     // ===== الموردون =====
@@ -80,7 +82,7 @@ public static class Permissions
         public const string Edit   = "suppliers.edit";
         public const string Delete = "suppliers.delete";
 
-        public static readonly string[] All = [View, Create, Edit, Delete];
+        public static readonly string[] All = new[] { View, Create, Edit, Delete };
     }
 
     // ===== التسويات المالية =====
@@ -89,7 +91,7 @@ public static class Permissions
         public const string View   = "settlements.view";
         public const string Create = "settlements.create";
 
-        public static readonly string[] All = [View, Create];
+        public static readonly string[] All = new[] { View, Create };
     }
 
     // ===== المعاملات النقدية =====
@@ -99,7 +101,7 @@ public static class Permissions
         public const string Create = "finance.create";
         public const string Delete = "finance.delete";
 
-        public static readonly string[] All = [View, Create, Delete];
+        public static readonly string[] All = new[] { View, Create, Delete };
     }
 
     // ===== التقارير =====
@@ -108,7 +110,7 @@ public static class Permissions
         public const string View   = "reports.view";
         public const string Export = "reports.export";
 
-        public static readonly string[] All = [View, Export];
+        public static readonly string[] All = new[] { View, Export };
     }
 
     // ===== إعدادات النظام (Admin فقط) =====
@@ -120,47 +122,52 @@ public static class Permissions
         public const string Billing  = "settings.billing";
         public const string Branches = "settings.branches";
 
-        public static readonly string[] All = [General, Users, Roles, Billing, Branches];
+        public static readonly string[] All = new[] { General, Users, Roles, Billing, Branches };
     }
 
     // ===== قائمة كل الصلاحيات في النظام =====
     public static string[] GetAll() =>
-    [
-        ..Employees.All, ..Attendance.All, ..Sales.All, ..Purchases.All,
-        ..Inventory.All, ..Customers.All, ..Suppliers.All, ..Settlements.All,
-        ..Finance.All, ..Reports.All, ..Settings.All
-    ];
+        Employees.All
+            .Concat(Attendance.All)
+            .Concat(Sales.All)
+            .Concat(Purchases.All)
+            .Concat(Inventory.All)
+            .Concat(Customers.All)
+            .Concat(Suppliers.All)
+            .Concat(Settlements.All)
+            .Concat(Finance.All)
+            .Concat(Reports.All)
+            .Concat(Settings.All)
+            .ToArray();
 
     // ===== الصلاحيات الافتراضية لكل دور =====
     public static string[] GetForRole(string roleName) => roleName switch
     {
         DefaultRoles.Owner => GetAll(), // المالك — كل الصلاحيات
         DefaultRoles.Manager =>
-        [
-            ..Employees.All, ..Attendance.All, ..Sales.All, ..Purchases.All,
-            ..Inventory.All, ..Customers.All, ..Suppliers.All,
-            ..Settlements.All, ..Finance.All, ..Reports.All,
-            Settings.General, Settings.Branches
-        ],
+            Employees.All
+            .Concat(Attendance.All)
+            .Concat(Sales.All)
+            .Concat(Purchases.All)
+            .Concat(Inventory.All)
+            .Concat(Customers.All)
+            .Concat(Suppliers.All)
+            .Concat(Settlements.All)
+            .Concat(Finance.All)
+            .Concat(Reports.All)
+            .Concat(new[] { Settings.General, Settings.Branches })
+            .ToArray(),
         DefaultRoles.Accountant =>
-        [
-            Sales.View, Purchases.View,
-            ..Settlements.All, ..Finance.All, ..Reports.All,
-            Employees.Payroll, Employees.Loans, Employees.View
-        ],
+            Settlements.All
+            .Concat(Finance.All)
+            .Concat(Reports.All)
+            .Concat(new[] { Sales.View, Purchases.View, Employees.Payroll, Employees.Loans, Employees.View })
+            .ToArray(),
         DefaultRoles.Sales =>
-        [
-            Sales.View, Sales.Create,
-            Customers.View, Customers.Create, Customers.Edit,
-            Inventory.View
-        ],
+            new[] { Sales.View, Sales.Create, Customers.View, Customers.Create, Customers.Edit, Inventory.View },
         DefaultRoles.InventoryClerk =>
-        [
-            Inventory.View, Inventory.Create, Inventory.Edit,
-            Inventory.StockAdjustment,
-            Purchases.View, Purchases.Create
-        ],
-        _ => []
+            new[] { Inventory.View, Inventory.Create, Inventory.Edit, Inventory.StockAdjustment, Purchases.View, Purchases.Create },
+        _ => new string[0]
     };
 }
 
@@ -175,5 +182,5 @@ public static class DefaultRoles
     public const string Sales          = "Sales";
     public const string InventoryClerk = "InventoryClerk";
 
-    public static readonly string[] All = [Owner, Manager, Accountant, Sales, InventoryClerk];
+    public static readonly string[] All = new[] { Owner, Manager, Accountant, Sales, InventoryClerk };
 }
