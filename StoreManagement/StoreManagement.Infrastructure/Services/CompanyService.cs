@@ -11,6 +11,7 @@ using StoreManagement.Shared.Entities.Configuration;
 using StoreManagement.Shared.Entities.Core;
 using StoreManagement.Shared.Enums;
 using StoreManagement.Shared.Interfaces;
+using Microsoft.AspNetCore.Identity;
 
 namespace StoreManagement.Infrastructure.Services;
 
@@ -18,11 +19,13 @@ public class CompanyService : ICompanyService
 {
     private readonly StoreDbContext _context;
     private readonly ICurrentUserService _currentUser;
+    private readonly UserManager<User> _userManager;
 
-    public CompanyService(StoreDbContext context, ICurrentUserService currentUser)
+    public CompanyService(StoreDbContext context, ICurrentUserService currentUser, UserManager<User> userManager)
     {
         _context = context;
         _currentUser = currentUser;
+        _userManager = userManager;
     }
 
     public async Task<List<CompanyReadDto>> GetAllAsync()
@@ -137,6 +140,28 @@ public class CompanyService : ICompanyService
         logo.FileSize = logoContent.Length;
 
         await _context.SaveChangesAsync();
+    }
+
+    public async Task<List<UserReadDto>> GetCompanyUsersAsync(int companyId)
+    {
+        var users = await _userManager.Users
+            .Where(u => u.CompanyId == companyId)
+            .ToListAsync();
+
+        var result = new List<UserReadDto>();
+        foreach (var u in users)
+        {
+            var roles = await _userManager.GetRolesAsync(u);
+            result.Add(new UserReadDto
+            {
+                Id = u.Id,
+                Email = u.Email ?? "",
+                UserName = u.UserName ?? "",
+                Roles = roles.ToList()
+            });
+        }
+
+        return result;
     }
 
     private static CompanyReadDto MapToDto(Company company)

@@ -19,6 +19,11 @@ public interface ISubscriptionService
     /// الحصول على بيانات الاشتراك الحالية (مع Caching)
     /// </summary>
     Task<CompanySubscription?> GetActiveSubscriptionAsync(int companyId);
+
+    /// <summary>
+    /// الحصول على تفاصيل حالة الاشتراك الشاملة (مع المميزات)
+    /// </summary>
+    Task<SubscriptionStatusDto?> GetSubscriptionStatusAsync(int companyId);
 }
 
 /// <summary>
@@ -243,6 +248,7 @@ public interface ICompanyService
     Task<DTOs.CompanyReadDto> CreateAsync(DTOs.CompanyCreateDto dto);
     Task UpdateMyCompanyAsync(DTOs.CompanyUpdateDto dto);
     Task UploadLogoAsync(byte[] logoContent, string contentType);
+    Task<List<DTOs.UserReadDto>> GetCompanyUsersAsync(int companyId);
 }
 
 /// <summary>

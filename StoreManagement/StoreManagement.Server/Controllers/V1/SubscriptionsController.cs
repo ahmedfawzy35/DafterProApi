@@ -28,10 +28,12 @@ namespace StoreManagement.Server.Controllers.V1;
 public class SubscriptionsController : ControllerBase
 {
     private readonly StoreDbContext _context;
+    private readonly ISubscriptionService _subscriptionService;
 
-    public SubscriptionsController(StoreDbContext context)
+    public SubscriptionsController(StoreDbContext context, ISubscriptionService subscriptionService)
     {
         _context = context;
+        _subscriptionService = subscriptionService;
     }
 
     /// <summary>
@@ -62,38 +64,12 @@ public class SubscriptionsController : ControllerBase
     [HttpGet("{companyId:int}/status")]
     public async Task<ActionResult<ApiResponse<SubscriptionStatusDto>>> GetStatus(int companyId)
     {
-        var subscription = await _context.CompanySubscriptions
-            .Include(cs => cs.Plan).ThenInclude(p => p.Features)
-            .Include(cs => cs.FeatureOverrides)
-            .IgnoreQueryFilters()
-            .Where(cs => cs.CompanyId == companyId && cs.IsActive)
-            .OrderByDescending(cs => cs.EndDate)
-            .FirstOrDefaultAsync();
+        var status = await _subscriptionService.GetSubscriptionStatusAsync(companyId);
 
-        if (subscription is null)
+        if (status is null)
             return NotFound(ApiResponse<SubscriptionStatusDto>.Failure("الشركة لا تملك اشتراكاً نشطاً"));
 
-        var enabledFeatures = subscription.Plan?.Features
-            .Where(f => f.IsEnabled).Select(f => f.FeatureKey).ToList() ?? [];
-
-        // تطبيق الـ Overrides
-        foreach (var ov in subscription.FeatureOverrides)
-        {
-            if (ov.IsEnabled && !enabledFeatures.Contains(ov.FeatureKey))
-                enabledFeatures.Add(ov.FeatureKey);
-            else if (!ov.IsEnabled)
-                enabledFeatures.Remove(ov.FeatureKey);
-        }
-
-        return Ok(ApiResponse<SubscriptionStatusDto>.SuccessResult(new SubscriptionStatusDto
-        {
-            IsActive = subscription.IsActive && subscription.EndDate > DateTime.UtcNow,
-            StartDate = subscription.StartDate,
-            EndDate = subscription.EndDate,
-            DaysRemaining = Math.Max(0, (int)(subscription.EndDate - DateTime.UtcNow).TotalDays),
-            PlanName = subscription.Plan?.DisplayName ?? "",
-            EnabledFeatures = enabledFeatures
-        }));
+        return Ok(ApiResponse<SubscriptionStatusDto>.SuccessResult(status));
     }
 
     /// <summary>

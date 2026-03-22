@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
+using StoreManagement.Shared.DTOs;
 using StoreManagement.Shared.Entities.HR;
 using StoreManagement.Shared.Entities.Inventory;
 using StoreManagement.Shared.Entities.Sales;
@@ -50,5 +51,34 @@ public class SubscriptionService : ISubscriptionService
                 .OrderByDescending(cs => cs.EndDate)
                 .FirstOrDefaultAsync();
         }, TimeSpan.FromMinutes(5)); // Cache لمدة 5 دقائق لكل Request
+    }
+
+    public async Task<SubscriptionStatusDto?> GetSubscriptionStatusAsync(int companyId)
+    {
+        var subscription = await GetActiveSubscriptionAsync(companyId);
+
+        if (subscription is null) return null;
+
+        var enabledFeatures = subscription.Plan?.Features
+            .Where(f => f.IsEnabled).Select(f => f.FeatureKey).ToList() ?? [];
+
+        // تطبيق الـ Overrides
+        foreach (var ov in subscription.FeatureOverrides)
+        {
+            if (ov.IsEnabled && !enabledFeatures.Contains(ov.FeatureKey))
+                enabledFeatures.Add(ov.FeatureKey);
+            else if (!ov.IsEnabled)
+                enabledFeatures.Remove(ov.FeatureKey);
+        }
+
+        return new SubscriptionStatusDto
+        {
+            IsActive = subscription.IsActive && subscription.EndDate > DateTime.UtcNow,
+            StartDate = subscription.StartDate,
+            EndDate = subscription.EndDate,
+            DaysRemaining = Math.Max(0, (int)(subscription.EndDate - DateTime.UtcNow).TotalDays),
+            PlanName = subscription.Plan?.DisplayName ?? "",
+            EnabledFeatures = enabledFeatures
+        };
     }
 }
