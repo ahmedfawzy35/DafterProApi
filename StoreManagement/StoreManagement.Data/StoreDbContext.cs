@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data.Interceptors;
 using StoreManagement.Shared.Entities.HR;
@@ -158,15 +158,24 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<Company>()
             .HasQueryFilter(c => !c.IsDeleted);
 
-        // ===== الفهارس (Indexes) لتحسين الأداء =====
+        // ===== الفهارس (Indexes) لتحسين الأداء وتطبيق القيود =====
         builder.Entity<Customer>().HasIndex(c => c.CompanyId);
-        builder.Entity<Customer>().HasIndex(c => c.Name);
+        builder.Entity<Customer>()
+            .HasIndex(c => new { c.CompanyId, c.Name })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
 
         builder.Entity<Supplier>().HasIndex(s => s.CompanyId);
-        builder.Entity<Supplier>().HasIndex(s => s.Name);
+        builder.Entity<Supplier>()
+            .HasIndex(s => new { s.CompanyId, s.Name })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
 
         builder.Entity<Product>().HasIndex(p => p.CompanyId);
-        builder.Entity<Product>().HasIndex(p => p.Name);
+        builder.Entity<Product>()
+            .HasIndex(p => new { p.CompanyId, p.Name })
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
 
         // فهرس فريد للباركود داخل كل شركة (خط الدفاع الأساسي ضد التكرار)
         builder.Entity<Product>()

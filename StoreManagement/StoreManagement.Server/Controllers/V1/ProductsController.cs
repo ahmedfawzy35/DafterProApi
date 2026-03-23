@@ -1,4 +1,4 @@
-﻿using Asp.Versioning;
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -133,6 +133,13 @@ public class ProductsController : ControllerBase
     {
         var companyId = _currentUser.CompanyId.Value;
 
+        // التحقق من تكرار اسم المنتج
+        var nameExists = await _context.Products
+            .AnyAsync(p => p.Name.ToLower() == dto.Name.ToLower() && p.CompanyId == companyId);
+
+        if (nameExists)
+            return BadRequest(ApiResponse<ProductReadDto>.Failure("اسم المنتج مسجل مسبقاً بنفس الشركة"));
+
         // تحديد الباركود والصيغة
         string barcode;
         BarcodeType barcodeType;
@@ -205,6 +212,18 @@ public class ProductsController : ControllerBase
 
         if (product is null)
             return NotFound(ApiResponse<object>.Failure("المنتج غير موجود"));
+
+        var companyId = _currentUser.CompanyId.Value;
+
+        // التحقق من تكرار اسم المنتج الجديد
+        if (product.Name != dto.Name)
+        {
+            var nameExists = await _context.Products
+                .AnyAsync(p => p.Name.ToLower() == dto.Name.ToLower() && p.CompanyId == companyId && p.Id != id);
+
+            if (nameExists)
+                return BadRequest(ApiResponse<object>.Failure("اسم المنتج مسجل مسبقاً بمنتج آخر"));
+        }
 
         // ===== منطق تحديث الباركود المقيَّد =====
         if (!string.IsNullOrWhiteSpace(dto.Barcode) && dto.Barcode != product.Barcode)
