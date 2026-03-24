@@ -13,6 +13,12 @@ public class Company : IAuditEntity
     // اسم الشركة
     public string Name { get; set; } = string.Empty;
 
+    // الاسم المختصر بالإنجليزية (يستخدم للـ Username والروابط)
+    public string CompanyCode { get; set; } = string.Empty;
+
+    // حالة تفعيل الشركة (للإيقاف المؤقت أو النهائي)
+    public bool Enabled { get; set; } = true;
+
     // العنوان
     public string? Address { get; set; }
 
@@ -61,6 +67,9 @@ public class Branch
 
     // اسم الفرع
     public string Name { get; set; } = string.Empty;
+
+    // حالة تفعيل الفرع
+    public bool Enabled { get; set; } = true;
 
     // معرف الشركة الأم
     public int CompanyId { get; set; }

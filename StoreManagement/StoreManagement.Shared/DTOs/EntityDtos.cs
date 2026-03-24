@@ -167,21 +167,20 @@ public class CreateEmployeeDto
 {
     public string Name { get; set; } = string.Empty;
     public decimal Salary { get; set; }
-    public decimal Allowances { get; set; }
-    public decimal Deductions { get; set; }
     public string? Phone { get; set; }
     public EmployeeType Type { get; set; }
+    // الفرع الذي سيُسجل الموظف فيه (اختياري - يأخذ الفرع الحالي)
+    public int? CurrentBranchId { get; set; }
 }
 
 public class UpdateEmployeeDto
 {
     public string Name { get; set; } = string.Empty;
     public decimal Salary { get; set; }
-    public decimal Allowances { get; set; }
-    public decimal Deductions { get; set; }
     public bool IsEnabled { get; set; }
     public string? Phone { get; set; }
     public EmployeeType Type { get; set; }
+    public int? CurrentBranchId { get; set; }
 }
 
 public class EmployeeReadDto
@@ -189,11 +188,11 @@ public class EmployeeReadDto
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public decimal Salary { get; set; }
-    public decimal Allowances { get; set; }
-    public decimal Deductions { get; set; }
     public bool IsEnabled { get; set; }
     public string? Phone { get; set; }
     public EmployeeType Type { get; set; }
+    public int? CurrentBranchId { get; set; }
+    public string? CurrentBranchName { get; set; }
 }
 // ===== DTOs خاصة بالعمليات المالية =====
 
@@ -281,12 +280,14 @@ public class CreateBranchDto
 public class UpdateBranchDto
 {
     public string Name { get; set; } = string.Empty;
+    public bool Enabled { get; set; } = true;
 }
 
 public class BranchReadDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public bool Enabled { get; set; }
 }
 
 // ===== DTOs خاصة بالمخزون (Inventory / Stock Adjustments) =====
@@ -445,6 +446,8 @@ public class CompanyReadDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string CompanyCode { get; set; } = string.Empty;
+    public bool Enabled { get; set; }
     public string? Address { get; set; }
     public string? BusinessType { get; set; }
     public bool HasBranches { get; set; }
@@ -459,6 +462,11 @@ public class CompanyReadDto
     
     public List<CompanyPhoneNumberDto> PhoneNumbers { get; set; } = [];
     public CompanyLogoDto? Logo { get; set; }
+
+    // حقول إضافية تُعاد فقط عند إنشاء شركة جديدة
+    public string? OwnerUserName { get; set; }
+    public string? OwnerTempPassword { get; set; }
+    public int? MainBranchId { get; set; }
 }
 
 public class CompanyPhoneNumberDto

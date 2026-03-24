@@ -11,6 +11,9 @@ public interface ICurrentUserService
     // معرف شركة المستخدم الحالي (من الـ Token)
     int? CompanyId { get; }
 
+    // معرف الفرع الحالي للمستخدم (من הـ Header x-branch-id أو الـ Token)
+    int? BranchId { get; }
+
     // معرف الشركة المحدد للـ Platform User بشكل صريح لمحدودية النطاق (Scoped Company)
     int? ScopedCompanyId { get; set; }
 

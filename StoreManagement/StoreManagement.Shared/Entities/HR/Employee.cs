@@ -1,4 +1,5 @@
 using StoreManagement.Shared.Enums;
+using StoreManagement.Shared.Entities.Configuration;
 
 namespace StoreManagement.Shared.Entities.HR;
 
@@ -16,11 +17,7 @@ public class Employee : BaseEntity
     // الراتب الأساسي
     public decimal Salary { get; set; }
 
-    // البدلات الإضافية
-    public decimal Allowances { get; set; } = 0;
-
-    // الاستقطاعات
-    public decimal Deductions { get; set; } = 0;
+    // ملاحظة: البدلات والاستقطاعات تُدار عبر RecurringAdjustment - لا تُخزن هنا
 
     // هل الموظف فعّال
     public bool IsEnabled { get; set; } = true;
@@ -28,7 +25,11 @@ public class Employee : BaseEntity
     // رقم الهاتف
     public string? Phone { get; set; }
 
-    // سجلات الحضور والغياب (الجديدة)
+    // الفرع الحالي الذي يعمل فيه الموظف
+    public int? CurrentBranchId { get; set; }
+    public Branch? CurrentBranch { get; set; }
+
+    // سجلات الحضور والغياب
     public ICollection<Attendance> Attendances { get; set; } = [];
 
     // التوقيتات الوظيفية (تاريخ الحالات)
@@ -40,7 +41,7 @@ public class Employee : BaseEntity
     // التسويات المباشرة
     public ICollection<SalaryAdjustment> Adjustments { get; set; } = [];
 
-    // التسويات المستمرة
+    // التسويات المستمرة (بدلات / استقطاعات دورية)
     public ICollection<RecurringAdjustment> RecurringAdjustments { get; set; } = [];
 
     // القروض
@@ -49,9 +50,10 @@ public class Employee : BaseEntity
     // تشغيلات الرواتب (Snapshots)
     public ICollection<PayrollRun> PayrollRuns { get; set; } = [];
 
-    // سجلات الرواتب المصروفة (Legacy - keep for compatibility if needed or mark as obsolete)
+    // سجلات الرواتب القديمة (Legacy - للتوافق مع البيانات القديمة)
     public ICollection<Payroll> Payrolls { get; set; } = [];
 }
+
 
 /// <summary>
 /// كيان تسجيل حضور وغياب الموظف

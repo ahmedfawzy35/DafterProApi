@@ -98,11 +98,5 @@ public class CreateEmployeeValidator : AbstractValidator<CreateEmployeeDto>
 
         RuleFor(x => x.Salary)
             .GreaterThan(0).WithMessage("الراتب يجب أن يكون أكبر من صفر");
-
-        RuleFor(x => x.Allowances)
-            .GreaterThanOrEqualTo(0).WithMessage("البدلات لا يمكن أن تكون سالبة");
-
-        RuleFor(x => x.Deductions)
-            .GreaterThanOrEqualTo(0).WithMessage("الاستقطاعات لا يمكن أن تكون سالبة");
     }
 }

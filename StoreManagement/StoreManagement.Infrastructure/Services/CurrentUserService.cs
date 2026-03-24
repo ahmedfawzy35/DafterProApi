@@ -40,6 +40,23 @@ public class CurrentUserService : ICurrentUserService
         }
     }
 
+    // معرف الفرع: يُقرأ أولاً من الـ JWT Claim، ثم من الـ Header x-branch-id (للمديرين)
+    public int? BranchId
+    {
+        get
+        {
+            // JWT Claim (للموظفين المرتبطين بفرع واحد)
+            var branchIdClaim = User?.FindFirst("branchId")?.Value
+                             ?? User?.FindFirst("BranchId")?.Value;
+            if (int.TryParse(branchIdClaim, out var fromToken))
+                return fromToken;
+
+            // HTTP Header (للمدير الذي يختار الفرع في كل طلب)
+            var headerVal = _httpContextAccessor.HttpContext?.Request.Headers["x-branch-id"].FirstOrDefault();
+            return int.TryParse(headerVal, out var fromHeader) ? fromHeader : null;
+        }
+    }
+
     // معرف النطاق المؤقت لمدير النظام الأساسي (يُعين في الـ Action Filter)
     public int? ScopedCompanyId { get; set; }
 

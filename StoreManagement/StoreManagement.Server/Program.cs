@@ -193,6 +193,7 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBranchService, BranchService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<IEmployeeService, EmployeeService>();
 builder.Services.AddScoped<IPayrollService, PayrollService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IPluginService, PluginService>();
@@ -316,7 +317,10 @@ app.UseAuthorization();
 // 7. Tenant Resolution (بعد Authentication)
 app.UseMiddleware<TenantResolutionMiddleware>();
 
-// 8. Subscription Check (بعد Tenant Resolution)
+// 8. Tenant Status Check (التحقق من تفعيل الشركة والفرع والمستخدم)
+app.UseTenantStatus();
+
+// 9. Subscription Check (بعد Tenant Resolution)
 app.UseMiddleware<SubscriptionMiddleware>();
 
 // ===== Hangfire Dashboard =====

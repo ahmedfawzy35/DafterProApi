@@ -10,6 +10,9 @@ public class User : IdentityUser<int>
     // تحديد ما إذا كان المستخدم يتبع للمنصة (Platform) أم لشركة (Tenant)
     public bool IsPlatformUser { get; set; } = false;
 
+    // حالة تفعيل حساب المستخدم
+    public bool Enabled { get; set; } = true;
+
     // معرف الشركة التابع لها المستخدم (اختياري لمستخدمي المنصة)
     public int? CompanyId { get; set; }
 

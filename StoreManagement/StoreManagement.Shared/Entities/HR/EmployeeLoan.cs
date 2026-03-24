@@ -1,12 +1,16 @@
 using StoreManagement.Shared.Enums;
+using StoreManagement.Shared.Entities.Core;
 
 namespace StoreManagement.Shared.Entities.HR;
 
 /// <summary>
 /// كيان قرض الموظف (سُلفة أو قرض طويل)
 /// </summary>
-public class EmployeeLoan : BaseEntity
+public class EmployeeLoan : BaseEntity, IBranchEntity
 {
+    // معرف الفرع
+    public int BranchId { get; set; }
+
     public int EmployeeId { get; set; }
     public Employee Employee { get; set; } = null!;
 

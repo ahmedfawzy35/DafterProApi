@@ -1,12 +1,17 @@
 using StoreManagement.Shared.Enums;
 
+using StoreManagement.Shared.Entities.Core;
+
 namespace StoreManagement.Shared.Entities.Inventory;
 
 /// <summary>
 /// كيان حركات المخزون - يُسجل أي دخول أو خروج للمنتجات
 /// </summary>
-public class StockTransaction : BaseEntity
+public class StockTransaction : BaseEntity, IBranchEntity
 {
+    // معرف الفرع
+    public int BranchId { get; set; }
+
     // معرف المنتج
     public int ProductId { get; set; }
 

@@ -1,12 +1,17 @@
 using StoreManagement.Shared.Enums;
 
+using StoreManagement.Shared.Entities.Core;
+
 namespace StoreManagement.Shared.Entities.HR;
 
 /// <summary>
 /// كيان الحضور اليومي للموظف
 /// </summary>
-public class Attendance : BaseEntity
+public class Attendance : BaseEntity, IBranchEntity
 {
+    // معرف الفرع
+    public int BranchId { get; set; }
+
     public int EmployeeId { get; set; }
     public Employee Employee { get; set; } = null!;
 

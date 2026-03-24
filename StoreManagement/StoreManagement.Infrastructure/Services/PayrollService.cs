@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
 using StoreManagement.Infrastructure.Services.PayrollStrategies;
 using StoreManagement.Shared.DTOs;
@@ -218,6 +218,7 @@ public class PayrollService : IPayrollService
                     Date = DateTime.UtcNow,
                     Notes = $"صرف راتب {month}/{year} للموظف {run.Employee.Name} (رقم التشغيل: {run.Id})",
                     CompanyId = companyId,
+                    BranchId = run.Employee.CurrentBranchId ?? _currentUser.BranchId ?? 0,
                     UserId = userId,
                     RelatedEntityId = run.EmployeeId
                 };

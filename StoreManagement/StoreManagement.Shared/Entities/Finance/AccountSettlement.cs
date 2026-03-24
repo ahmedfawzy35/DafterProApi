@@ -1,12 +1,17 @@
 using StoreManagement.Shared.Enums;
 
+using StoreManagement.Shared.Entities.Core;
+
 namespace StoreManagement.Shared.Entities.Finance;
 
 /// <summary>
 /// كيان تسوية الحسابات (خصم أو إضافة رصيد يدوي دون حركة نقدية)
 /// </summary>
-public class AccountSettlement : BaseEntity
+public class AccountSettlement : BaseEntity, IBranchEntity
 {
+    // معرف الفرع
+    public int BranchId { get; set; }
+
     // نوع المصدر (عميل أو مورد)
     public SettlementSource SourceType { get; set; }
 

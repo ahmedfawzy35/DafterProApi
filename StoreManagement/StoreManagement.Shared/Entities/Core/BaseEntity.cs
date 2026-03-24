@@ -5,7 +5,7 @@ namespace StoreManagement.Shared.Entities.Core;
 /// <summary>
 /// الكيان الأساسي الذي ترث منه جميع جداول النظام
 /// </summary>
-public abstract class BaseEntity : IAuditEntity
+public abstract class BaseEntity : IAuditEntity, ICompanyEntity
 {
     // المعرف الفريد
     public int Id { get; set; }

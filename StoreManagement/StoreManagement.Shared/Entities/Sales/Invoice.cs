@@ -1,12 +1,17 @@
 using StoreManagement.Shared.Enums;
 
+using StoreManagement.Shared.Entities.Core;
+
 namespace StoreManagement.Shared.Entities.Sales;
 
 /// <summary>
 /// كيان الفاتورة الرئيسي (مبيعات أو مشتريات)
 /// </summary>
-public class Invoice : BaseEntity
+public class Invoice : BaseEntity, IBranchEntity
 {
+    // معرف الفرع
+    public int BranchId { get; set; }
+
     // نوع الفاتورة (مبيعات / مشتريات)
     public InvoiceType Type { get; set; }
 

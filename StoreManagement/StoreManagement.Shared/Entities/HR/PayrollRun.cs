@@ -1,10 +1,15 @@
+using StoreManagement.Shared.Entities.Core;
+
 namespace StoreManagement.Shared.Entities.HR;
 
 /// <summary>
 /// كيان تشغيل الراتب (سجل توثيقي لراتب شهر محدد للموظف)
 /// </summary>
-public class PayrollRun : BaseEntity
+public class PayrollRun : BaseEntity, IBranchEntity
 {
+    // معرف الفرع
+    public int BranchId { get; set; }
+
     public int EmployeeId { get; set; }
     public Employee Employee { get; set; } = null!;
 

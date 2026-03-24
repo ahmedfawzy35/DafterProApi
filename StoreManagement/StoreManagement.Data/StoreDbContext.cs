@@ -88,75 +88,29 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     {
         base.OnModelCreating(builder);
 
-        // الحصول على معرف الشركة الحالية من الـ JWT
-        var companyId = _currentUserService.CompanyId;
+        // ===== التصفية الديناميكية للكيانات (Dynamic Query Filters) =====
+        foreach (var entityType in builder.Model.GetEntityTypes())
+        {
+            var clrType = entityType.ClrType;
 
-        // ===== عوامل التصفية الشاملة (Global Query Filters) =====
-        // تصفية العملاء حسب الشركة وعدم الحذف
-        builder.Entity<Customer>()
-            .HasQueryFilter(c => !c.IsDeleted && ((!_currentUserService.IsPlatformUser && c.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || c.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        // تصفية الموردين
-        builder.Entity<Supplier>()
-            .HasQueryFilter(s => !s.IsDeleted && ((!_currentUserService.IsPlatformUser && s.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || s.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        // تصفية المنتجات
-        builder.Entity<Product>()
-            .HasQueryFilter(p => !p.IsDeleted && ((!_currentUserService.IsPlatformUser && p.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || p.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        // تصفية الفواتير
-        builder.Entity<Invoice>()
-            .HasQueryFilter(i => !i.IsDeleted && ((!_currentUserService.IsPlatformUser && i.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || i.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        // تصفية المعاملات النقدية
-        builder.Entity<CashTransaction>()
-            .HasQueryFilter(t => !t.IsDeleted && ((!_currentUserService.IsPlatformUser && t.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || t.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        // تصفية التسويات
-        builder.Entity<AccountSettlement>()
-            .HasQueryFilter(s => !s.IsDeleted && ((!_currentUserService.IsPlatformUser && s.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || s.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        // تصفية الموظفين وتوابعهم
-        builder.Entity<Employee>()
-            .HasQueryFilter(e => !e.IsDeleted && ((!_currentUserService.IsPlatformUser && e.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || e.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        builder.Entity<Attendance>()
-            .HasQueryFilter(a => !a.IsDeleted && ((!_currentUserService.IsPlatformUser && a.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || a.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        builder.Entity<EmployeeAction>()
-            .HasQueryFilter(a => !a.IsDeleted && ((!_currentUserService.IsPlatformUser && a.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || a.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        builder.Entity<EmployeeSalary>()
-            .HasQueryFilter(s => !s.IsDeleted && ((!_currentUserService.IsPlatformUser && s.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || s.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        builder.Entity<SalaryAdjustment>()
-            .HasQueryFilter(s => !s.IsDeleted && ((!_currentUserService.IsPlatformUser && s.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || s.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        builder.Entity<RecurringAdjustment>()
-            .HasQueryFilter(s => !s.IsDeleted && ((!_currentUserService.IsPlatformUser && s.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || s.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        builder.Entity<EmployeeLoan>()
-            .HasQueryFilter(l => !l.IsDeleted && ((!_currentUserService.IsPlatformUser && l.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || l.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        builder.Entity<LoanInstallment>()
-            .HasQueryFilter(i => !i.IsDeleted && ((!_currentUserService.IsPlatformUser && i.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || i.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        builder.Entity<PayrollRun>()
-            .HasQueryFilter(p => !p.IsDeleted && ((!_currentUserService.IsPlatformUser && p.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || p.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        builder.Entity<PayrollRunItem>()
-            .HasQueryFilter(p => !p.IsDeleted && ((!_currentUserService.IsPlatformUser && p.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || p.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        builder.Entity<CompanyPolicy>()
-            .HasQueryFilter(p => !p.IsDeleted && ((!_currentUserService.IsPlatformUser && p.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || p.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        // تصفية حركات المخزون
-        builder.Entity<StockTransaction>()
-            .HasQueryFilter(st => !st.IsDeleted && ((!_currentUserService.IsPlatformUser && st.CompanyId == _currentUserService.CompanyId) || (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || st.CompanyId == _currentUserService.ScopedCompanyId))));
-
-        // تصفية الشركات (Soft Delete)
-        builder.Entity<Company>()
-            .HasQueryFilter(c => !c.IsDeleted);
+            // إذا كان الكيان فرعياً (IBranchEntity)
+            if (typeof(IBranchEntity).IsAssignableFrom(clrType))
+            {
+                var method = typeof(StoreDbContext).GetMethod(nameof(ConfigureBranchFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+                method.MakeGenericMethod(clrType).Invoke(this, new object[] { builder });
+            }
+            // إذا كان الكيان تابعاً لشركة ومختلفاً عن الفرع (ICompanyEntity)
+            else if (typeof(ICompanyEntity).IsAssignableFrom(clrType) && clrType != typeof(Company))
+            {
+                var method = typeof(StoreDbContext).GetMethod(nameof(ConfigureCompanyFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+                method.MakeGenericMethod(clrType).Invoke(this, new object[] { builder });
+            }
+            // إذا كان مجرد BaseEntity بدون واجهات الصلاحيات
+            else if (typeof(IAuditEntity).IsAssignableFrom(clrType) && clrType == typeof(Company))
+            {
+                builder.Entity<Company>().HasQueryFilter(c => !c.IsDeleted);
+            }
+        }
 
         // ===== الفهارس (Indexes) لتحسين الأداء وتطبيق القيود =====
         builder.Entity<Customer>().HasIndex(c => c.CompanyId);
@@ -244,10 +198,6 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         // الرواتب والموظفون
         builder.Entity<Employee>()
             .Property(e => e.Salary).HasColumnType("decimal(18,4)");
-        builder.Entity<Employee>()
-            .Property(e => e.Allowances).HasColumnType("decimal(18,4)");
-        builder.Entity<Employee>()
-            .Property(e => e.Deductions).HasColumnType("decimal(18,4)");
         builder.Entity<Attendance>()
             .Property(a => a.WorkingHours).HasColumnType("decimal(18,4)");
         builder.Entity<EmployeeSalary>()
@@ -297,6 +247,12 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
             .HasOne(u => u.Branch)
             .WithMany()
             .HasForeignKey(u => u.BranchId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<Employee>()
+            .HasOne(e => e.CurrentBranch)
+            .WithMany()
+            .HasForeignKey(e => e.CurrentBranchId)
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.Entity<CashTransaction>()
@@ -375,6 +331,30 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         // إضافة الـ Interceptor لضمان Soft Delete وتحديث التواريخ تلقائياً
         optionsBuilder.AddInterceptors(new SoftDeleteAndAuditInterceptor(_currentUserService));
         base.OnConfiguring(optionsBuilder);
+    }
+
+    private void ConfigureBranchFilter<TEntity>(ModelBuilder builder) where TEntity : class, IBranchEntity
+    {
+        builder.Entity<TEntity>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (
+                (!_currentUserService.IsPlatformUser && e.CompanyId == _currentUserService.CompanyId && (_currentUserService.BranchId == null || e.BranchId == _currentUserService.BranchId))
+                ||
+                (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || e.CompanyId == _currentUserService.ScopedCompanyId) && (_currentUserService.BranchId == null || e.BranchId == _currentUserService.BranchId))
+            )
+        );
+    }
+
+    private void ConfigureCompanyFilter<TEntity>(ModelBuilder builder) where TEntity : class, ICompanyEntity
+    {
+        builder.Entity<TEntity>().HasQueryFilter(e =>
+            !e.IsDeleted &&
+            (
+                (!_currentUserService.IsPlatformUser && e.CompanyId == _currentUserService.CompanyId)
+                ||
+                (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || e.CompanyId == _currentUserService.ScopedCompanyId))
+            )
+        );
     }
 }
 

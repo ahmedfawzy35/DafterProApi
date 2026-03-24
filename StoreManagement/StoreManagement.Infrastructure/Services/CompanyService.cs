@@ -62,33 +62,103 @@ public class CompanyService : ICompanyService
 
     public async Task<CompanyReadDto> CreateAsync(CompanyCreateDto dto)
     {
-        var company = new Company
-        {
-            Name = dto.Name,
-            Address = dto.Address,
-            BusinessType = dto.BusinessType,
-            HasBranches = dto.HasBranches,
-            ManageInventory = dto.ManageInventory,
-            CreatedDate = DateTime.UtcNow
-        };
+        // ===== توليد CompanyCode (slug) من اسم الشركة =====
+        var rawCode = dto.Name
+            .ToLowerInvariant()
+            .Replace(" ", "_")
+            .Replace("-", "_");
+        // إزالة الأحرف غير اللاتينية والأرقام والشرطة السفلية
+        var companyCode = System.Text.RegularExpressions.Regex.Replace(rawCode, @"[^a-z0-9_]", "");
+        if (companyCode.Length > 20) companyCode = companyCode[..20];
+        if (string.IsNullOrWhiteSpace(companyCode)) companyCode = $"company_{DateTime.UtcNow:yyyyMMddHHss}";
 
-        if (dto.PhoneNumbers != null)
+        // التأكد من عدم تكرار CompanyCode
+        var suffix = 1;
+        var baseCode = companyCode;
+        while (await _context.Companies.AnyAsync(c => c.CompanyCode == companyCode))
+            companyCode = $"{baseCode}{suffix++}";
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
         {
-            foreach (var phone in dto.PhoneNumbers)
+            // ===== إنشاء الشركة =====
+            var company = new Company
             {
-                company.PhoneNumbers.Add(new CompanyPhoneNumber
+                Name = dto.Name,
+                CompanyCode = companyCode,
+                Address = dto.Address,
+                BusinessType = dto.BusinessType,
+                HasBranches = dto.HasBranches,
+                ManageInventory = dto.ManageInventory,
+                Enabled = true,
+                CreatedDate = DateTime.UtcNow
+            };
+
+            if (dto.PhoneNumbers != null)
+            {
+                foreach (var phone in dto.PhoneNumbers)
                 {
-                    PhoneNumber = phone.PhoneNumber,
-                    IsWhatsApp = phone.IsWhatsApp
-                });
+                    company.PhoneNumbers.Add(new CompanyPhoneNumber
+                    {
+                        PhoneNumber = phone.PhoneNumber,
+                        IsWhatsApp = phone.IsWhatsApp
+                    });
+                }
             }
+
+            _context.Companies.Add(company);
+            await _context.SaveChangesAsync();   // الحصول على company.Id
+
+            // ===== إنشاء الفرع الرئيسي تلقائياً =====
+            var mainBranch = new Branch
+            {
+                Name = "الفرع الرئيسي",
+                CompanyId = company.Id,
+                Enabled = true
+            };
+            _context.Branches.Add(mainBranch);
+            await _context.SaveChangesAsync();   // الحصول على mainBranch.Id
+
+            // ===== إنشاء المستخدم المالك تلقائياً =====
+            var ownerUserName = $"{companyCode}_owner";
+            var ownerEmail = $"{ownerUserName}@{companyCode}.local";
+            var ownerPassword = $"Owner@{companyCode.ToUpper()}1";   // كلمة مرور مؤقتة
+
+            var ownerUser = new User
+            {
+                UserName = ownerUserName,
+                Email = ownerEmail,
+                CompanyId = company.Id,
+                BranchId = mainBranch.Id,
+                IsPlatformUser = false,
+                Enabled = true,
+                EmailConfirmed = true
+            };
+
+            var createResult = await _userManager.CreateAsync(ownerUser, ownerPassword);
+            if (!createResult.Succeeded)
+            {
+                var errors = string.Join(", ", createResult.Errors.Select(e => e.Description));
+                throw new InvalidOperationException($"فشل إنشاء المستخدم المالك: {errors}");
+            }
+
+            await _userManager.AddToRoleAsync(ownerUser, "Owner");
+
+            await transaction.CommitAsync();
+
+            var result = MapToDto(company);
+            result.OwnerUserName = ownerUserName;
+            result.OwnerTempPassword = ownerPassword;
+            result.MainBranchId = mainBranch.Id;
+            return result;
         }
-
-        _context.Companies.Add(company);
-        await _context.SaveChangesAsync();
-
-        return MapToDto(company);
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
+
 
     public async Task UpdateMyCompanyAsync(CompanyUpdateDto dto)
     {

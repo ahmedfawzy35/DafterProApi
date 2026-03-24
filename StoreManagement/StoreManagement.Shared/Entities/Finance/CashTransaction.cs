@@ -1,12 +1,17 @@
 using StoreManagement.Shared.Enums;
 
+using StoreManagement.Shared.Entities.Core;
+
 namespace StoreManagement.Shared.Entities.Finance;
 
 /// <summary>
 /// كيان المعاملة النقدية (قبض / صرف)
 /// </summary>
-public class CashTransaction : BaseEntity
+public class CashTransaction : BaseEntity, IBranchEntity
 {
+    // معرف الفرع
+    public int BranchId { get; set; }
+
     // نوع المعاملة (وارد / صادر)
     public TransactionType Type { get; set; }
 

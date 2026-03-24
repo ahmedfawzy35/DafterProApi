@@ -1,12 +1,17 @@
 using StoreManagement.Shared.Enums;
 
+using StoreManagement.Shared.Entities.Core;
+
 namespace StoreManagement.Shared.Entities.HR;
 
 /// <summary>
 /// كيان التسوية المالية المستمرة (بدلات أو تخفيضات دائمة)
 /// </summary>
-public class RecurringAdjustment : BaseEntity
+public class RecurringAdjustment : BaseEntity, IBranchEntity
 {
+    // معرف الفرع
+    public int BranchId { get; set; }
+
     public int EmployeeId { get; set; }
     public Employee Employee { get; set; } = null!;
 
