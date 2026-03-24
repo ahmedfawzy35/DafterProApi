@@ -25,6 +25,7 @@ using StoreManagement.Shared.Entities;
 using StoreManagement.Shared.Interfaces;
 using StoreManagement.Shared.Settings;
 using StoreManagement.Services.Services;
+using StoreManagement.Shared.Constants;
 
 // ===== إعداد Serilog مع Structured Logging =====
 Log.Logger = new LoggerConfiguration()
@@ -33,11 +34,11 @@ Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Hangfire", LogEventLevel.Warning)
     .Enrich.FromLogContext()             // يدعم CorrelationId/UserId/CompanyId
     .WriteTo.Console(outputTemplate:
-        "[{Timestamp:HH:mm:ss} {Level:u3}] [{CorrelationId}] [{CompanyId}] {Message:lj}{NewLine}{Exception}")
+        "[{Timestamp:HH:mm:ss} {Level:u3}] [{CorrelationId}] [{ScopeType}] [{CompanyId}] {Message:lj}{NewLine}{Exception}")
     .WriteTo.File("logs/store-.log",
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 30,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{CorrelationId}] [{UserId}] [{CompanyId}] {Message:lj}{NewLine}{Exception}")
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{CorrelationId}] [{ScopeType}] [{UserId}] [{CompanyId}] {Message:lj}{NewLine}{Exception}")
     // يمكن إضافة Seq/ELK هنا:
     // .WriteTo.Seq("http://localhost:5341")
     .CreateLogger();
@@ -103,25 +104,25 @@ builder.Services.AddAuthorizationBuilder()
         policy.Requirements.Add(new StoreManagement.Server.Authorization.PlatformUserRequirement()))
     // صلاحيات النظام
     .AddPolicy("RequirePermission:settings.roles",
-        p => p.RequireClaim("permission", "settings.roles"))
+        p => p.RequireClaim(AppClaims.Permission, "settings.roles"))
     .AddPolicy("RequirePermission:settings.users",
-        p => p.RequireClaim("permission", "settings.users"))
+        p => p.RequireClaim(AppClaims.Permission, "settings.users"))
     .AddPolicy("RequirePermission:settings.general",
-        p => p.RequireClaim("permission", "settings.general"))
+        p => p.RequireClaim(AppClaims.Permission, "settings.general"))
     .AddPolicy("RequirePermission:settings.billing",
-        p => p.RequireClaim("permission", "settings.billing"))
+        p => p.RequireClaim(AppClaims.Permission, "settings.billing"))
     .AddPolicy("RequirePermission:employees.payroll",
-        p => p.RequireClaim("permission", "employees.payroll"))
+        p => p.RequireClaim(AppClaims.Permission, "employees.payroll"))
     .AddPolicy("RequirePermission:employees.loans",
-        p => p.RequireClaim("permission", "employees.loans"))
+        p => p.RequireClaim(AppClaims.Permission, "employees.loans"))
     .AddPolicy("RequirePermission:sales.delete",
-        p => p.RequireClaim("permission", "sales.delete"))
+        p => p.RequireClaim(AppClaims.Permission, "sales.delete"))
     .AddPolicy("RequirePermission:sales.refund",
-        p => p.RequireClaim("permission", "sales.refund"))
+        p => p.RequireClaim(AppClaims.Permission, "sales.refund"))
     .AddPolicy("RequirePermission:finance.delete",
-        p => p.RequireClaim("permission", "finance.delete"))
+        p => p.RequireClaim(AppClaims.Permission, "finance.delete"))
     .AddPolicy("RequirePermission:reports.export",
-        p => p.RequireClaim("permission", "reports.export"));
+        p => p.RequireClaim(AppClaims.Permission, "reports.export"));
 
 // ===== Distributed Cache (Redis + MemoryCache Fallback) =====
 builder.Services.AddMemoryCache();

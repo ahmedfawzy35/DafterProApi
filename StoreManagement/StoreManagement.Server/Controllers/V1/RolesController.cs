@@ -7,7 +7,9 @@ using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.Constants;
 using StoreManagement.Shared.DTOs;
+using StoreManagement.Shared.DTOs;
 using StoreManagement.Shared.Interfaces;
+using StoreManagement.Shared.Constants;
 
 namespace StoreManagement.Server.Controllers.V1;
 
@@ -152,13 +154,31 @@ public class RolesController : ControllerBase
         if (invalid.Count != 0)
             return BadRequest(ApiResponse<object>.Failure($"صلاحيات غير معروفة: {string.Join(", ", invalid)}"));
 
-        // حذف الصلاحيات القديمة وإضافة الجديدة
-        var oldClaims = await _roleManager.GetClaimsAsync(role);
-        foreach (var claim in oldClaims)
-            await _roleManager.RemoveClaimAsync(role, claim);
+        // تحديث الصلاحيات بشكل آمن (Idempotent)
+        var currentClaims = await _roleManager.GetClaimsAsync(role);
+        var currentPermissionValues = currentClaims
+            .Where(c => c.Type == AppClaims.Permission)
+            .Select(c => c.Value)
+            .ToHashSet();
 
-        foreach (var perm in dto.Permissions)
-            await _roleManager.AddClaimAsync(role, new System.Security.Claims.Claim("permission", perm));
+        // 1. إضافة الصلاحيات المفقودة (الجديدة)
+        var toAdd = dto.Permissions.Except(currentPermissionValues);
+        foreach (var perm in toAdd)
+        {
+            await _roleManager.AddClaimAsync(role, new System.Security.Claims.Claim(AppClaims.Permission, perm));
+        }
+
+        // 2. مسح الصلاحيات التي يملكها النظام فقط ولم تعد مطلوبة (عدم مسح Custom Claims)
+        var allPermsSet = allPerms.ToHashSet();
+        foreach (var claim in currentClaims)
+        {
+            if (claim.Type == AppClaims.Permission && 
+                allPermsSet.Contains(claim.Value) && 
+                !dto.Permissions.Contains(claim.Value))
+            {
+                await _roleManager.RemoveClaimAsync(role, claim);
+            }
+        }
 
         return Ok(ApiResponse<object>.SuccessResult("تم تحديث الصلاحيات بنجاح"));
     }

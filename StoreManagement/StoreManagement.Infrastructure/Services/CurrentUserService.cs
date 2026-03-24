@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using StoreManagement.Shared.Interfaces;
+using StoreManagement.Shared.Constants;
 
 namespace StoreManagement.Infrastructure.Services;
 
@@ -34,8 +35,8 @@ public class CurrentUserService : ICurrentUserService
     {
         get
         {
-            var companyIdClaim = User?.FindFirst("companyId")?.Value 
-                                 ?? User?.FindFirst("CompanyId")?.Value;
+            var companyIdClaim = User?.FindFirst(AppClaims.CompanyId)?.Value 
+                                 ?? User?.FindFirst("companyId")?.Value;
             return int.TryParse(companyIdClaim, out var id) ? id : null;
         }
     }
@@ -46,8 +47,8 @@ public class CurrentUserService : ICurrentUserService
         get
         {
             // JWT Claim (للموظفين المرتبطين بفرع واحد)
-            var branchIdClaim = User?.FindFirst("branchId")?.Value
-                             ?? User?.FindFirst("BranchId")?.Value;
+            var branchIdClaim = User?.FindFirst(AppClaims.BranchId)?.Value
+                             ?? User?.FindFirst("branchId")?.Value;
             if (int.TryParse(branchIdClaim, out var fromToken))
                 return fromToken;
 
@@ -65,7 +66,7 @@ public class CurrentUserService : ICurrentUserService
     {
         get
         {
-            var platformClaim = User?.FindFirst("isPlatformUser")?.Value;
+            var platformClaim = User?.FindFirst(AppClaims.IsPlatformUser)?.Value;
             return platformClaim == "1";
         }
     }

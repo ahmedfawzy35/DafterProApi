@@ -161,7 +161,7 @@ public class CashTransactionService : ICashTransactionService
 
     public async Task UpdateAsync(int id, CreateCashTransactionDto dto)
     {
-        var transaction = await _context.CashTransactions.FindAsync(id)
+        var transaction = await _context.CashTransactions.FirstOrDefaultAsync(t => t.Id == id && t.CompanyId == _currentUser.CompanyId)
             ?? throw new KeyNotFoundException($"المعاملة رقم {id} غير موجودة");
 
         // 1. عكس التأثير القديم
@@ -183,7 +183,7 @@ public class CashTransactionService : ICashTransactionService
 
     public async Task DeleteAsync(int id)
     {
-        var transaction = await _context.CashTransactions.FindAsync(id)
+        var transaction = await _context.CashTransactions.FirstOrDefaultAsync(t => t.Id == id && t.CompanyId == _currentUser.CompanyId)
             ?? throw new KeyNotFoundException($"المعاملة رقم {id} غير موجودة");
 
         // عكس تأثير الرصيد عند الحذف

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using StoreManagement.Shared.Common;
 using System.Text.Json;
+using StoreManagement.Shared.Constants;
+using StoreManagement.Server.Extensions;
 
 namespace StoreManagement.Server.Middleware;
 
@@ -28,8 +30,7 @@ public class TenantResolutionMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         // تجاوز التحقق للـ Endpoints العامة
-        var path = context.Request.Path.Value?.ToLower() ?? "";
-        if (_publicEndpoints.Any(p => path.StartsWith(p)))
+        if (context.Request.Path.Value.IsSafePublicPath(_publicEndpoints))
         {
             await _next(context);
             return;
@@ -38,8 +39,8 @@ public class TenantResolutionMiddleware
         // التحقق من وجود المستخدم مصادق عليه
         if (context.User?.Identity?.IsAuthenticated == true)
         {
-            var companyIdClaim = context.User.FindFirst("CompanyId")?.Value ?? context.User.FindFirst("companyId")?.Value;
-            var isPlatformClaim = context.User.FindFirst("isPlatformUser")?.Value ?? context.User.FindFirst("IsPlatformUser")?.Value;
+            var companyIdClaim = context.User.FindFirst(AppClaims.CompanyId)?.Value ?? context.User.FindFirst("companyId")?.Value;
+            var isPlatformClaim = context.User.FindFirst(AppClaims.IsPlatformUser)?.Value ?? context.User.FindFirst("isPlatformUser")?.Value;
             var isPlatformUser = isPlatformClaim == "1";
 
             if (!isPlatformUser && (string.IsNullOrWhiteSpace(companyIdClaim) || !int.TryParse(companyIdClaim, out var companyId)))
@@ -60,10 +61,13 @@ public class TenantResolutionMiddleware
 
             var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
+            string scopeType = isPlatformUser ? "Platform" : "Tenant";
+
             // إثراء السجلات بالمعلومات الحالية (Request Logging)
             using (Serilog.Context.LogContext.PushProperty("UserId", userId))
             using (Serilog.Context.LogContext.PushProperty("CompanyId", companyIdClaim))
             using (Serilog.Context.LogContext.PushProperty("IsPlatformUser", isPlatformUser))
+            using (Serilog.Context.LogContext.PushProperty("ScopeType", scopeType))
             {
                 await _next(context);
                 return; // تأكد من الخروج بعد استدعاء next داخل using block

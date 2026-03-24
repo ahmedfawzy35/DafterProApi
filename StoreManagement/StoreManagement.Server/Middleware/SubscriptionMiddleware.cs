@@ -1,6 +1,7 @@
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.Interfaces;
 using System.Text.Json;
+using StoreManagement.Server.Extensions;
 
 namespace StoreManagement.Server.Middleware;
 
@@ -26,10 +27,8 @@ public class SubscriptionMiddleware
 
     public async Task InvokeAsync(HttpContext context, ISubscriptionService subscriptionService, ICurrentUserService currentUser)
     {
-        var path = context.Request.Path.Value?.ToLower() ?? "";
-
         // تجاوز التحقق للمسارات المستثناة
-        if (_exemptPaths.Any(p => path.StartsWith(p)))
+        if (context.Request.Path.Value.IsSafePublicPath(_exemptPaths))
         {
             await _next(context);
             return;

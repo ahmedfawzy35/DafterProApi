@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using StoreManagement.Shared.Entities;
+using StoreManagement.Shared.Constants;
 
 namespace StoreManagement.Data.Seeding;
 
@@ -71,7 +72,7 @@ public static class DataSeeder
         {
             if (!currentPermissions.Contains(permission))
             {
-                var result = await roleManager.AddClaimAsync(role, new System.Security.Claims.Claim("permission", permission));
+                var result = await roleManager.AddClaimAsync(role, new System.Security.Claims.Claim(AppClaims.Permission, permission));
                 if (result.Succeeded)
                 {
                     logger.LogInformation("Permission '{Permission}' added to role '{RoleName}'.", permission, roleName);

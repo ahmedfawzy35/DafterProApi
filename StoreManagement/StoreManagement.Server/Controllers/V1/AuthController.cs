@@ -14,6 +14,7 @@ using StoreManagement.Shared.Common;
 using StoreManagement.Shared.Constants;
 using StoreManagement.Shared.DTOs;
 using StoreManagement.Shared.Settings;
+using StoreManagement.Shared.Constants;
 
 namespace StoreManagement.Server.Controllers.V1;
 
@@ -288,16 +289,16 @@ public class AuthController : ControllerBase
             new(ClaimTypes.Name, user.UserName ?? string.Empty),
             new(ClaimTypes.Email, user.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new("isPlatformUser", user.IsPlatformUser ? "1" : "0")
+            new(AppClaims.IsPlatformUser, user.IsPlatformUser ? "1" : "0")
         };
 
         if (user.CompanyId.HasValue)
-            claims.Add(new Claim("companyId", user.CompanyId.Value.ToString()));
+            claims.Add(new Claim(AppClaims.CompanyId, user.CompanyId.Value.ToString()));
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
         if (user.BranchId.HasValue)
-            claims.Add(new Claim("BranchId", user.BranchId.Value.ToString()));
+            claims.Add(new Claim(AppClaims.BranchId, user.BranchId.Value.ToString()));
 
         // تضمين الصلاحيات من الأدوار مباشرةً في JWT
         var addedPerms = new HashSet<string>();
@@ -308,9 +309,11 @@ public class AuthController : ControllerBase
             var roleClaims = await _roleManager.GetClaimsAsync(roleEntity);
             foreach (var rc in roleClaims)
                 if (addedPerms.Add(rc.Value))
-                    claims.Add(new Claim("permission", rc.Value));
+                    claims.Add(new Claim(AppClaims.Permission, rc.Value));
         }
 
+        // NOTE: JWT token payload size will grow as permissions scale.
+        // Consider optimizing or verifying size limits if 100+ permissions are added.
         return new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
             issuer: _jwtSettings.Issuer,
             audience: _jwtSettings.Audience,

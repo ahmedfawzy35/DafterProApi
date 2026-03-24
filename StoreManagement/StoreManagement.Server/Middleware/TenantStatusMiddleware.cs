@@ -4,6 +4,7 @@ using Microsoft.Extensions.Caching.Memory;
 using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.Interfaces;
+using StoreManagement.Server.Extensions;
 
 namespace StoreManagement.Server.Middleware;
 
@@ -35,8 +36,7 @@ public class TenantStatusMiddleware
         StoreDbContext db, IMemoryCache cache)
     {
         // تجاوز المسارات العامة
-        var path = context.Request.Path.Value?.ToLower() ?? "";
-        if (_publicPaths.Any(p => path.StartsWith(p)))
+        if (context.Request.Path.Value.IsSafePublicPath(_publicPaths))
         {
             await _next(context);
             return;

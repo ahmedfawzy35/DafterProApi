@@ -70,8 +70,8 @@ public class EmployeeService : IEmployeeService
 
     public async Task UpdateEmployeeAsync(int id, UpdateEmployeeDto dto)
     {
-        var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == id);
-        if (employee is null) throw new KeyNotFoundException("الموظف غير موجود");
+        var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == id && e.CompanyId == _currentUser.CompanyId);
+        if (employee is null) throw new KeyNotFoundException("الموظف غير موجود أو لا تملك صلاحية الوصول إليه");
 
         employee.Name = dto.Name; employee.Salary = dto.Salary;
         employee.IsEnabled = dto.IsEnabled; employee.Phone = dto.Phone;
@@ -83,8 +83,8 @@ public class EmployeeService : IEmployeeService
 
     public async Task DeleteEmployeeAsync(int id)
     {
-        var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == id);
-        if (employee is null) throw new KeyNotFoundException("الموظف غير موجود");
+        var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == id && e.CompanyId == _currentUser.CompanyId);
+        if (employee is null) throw new KeyNotFoundException("الموظف غير موجود أو لا تملك صلاحية الوصول إليه");
 
         _context.Employees.Remove(employee);
         await _context.SaveChangesAsync();

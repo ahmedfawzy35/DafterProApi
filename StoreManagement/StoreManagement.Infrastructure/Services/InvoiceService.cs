@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.DTOs;
@@ -225,7 +225,7 @@ public class InvoiceService : IInvoiceService
 
     public async Task DeleteAsync(int id)
     {
-        var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.Id == id)
+        var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.Id == id && i.CompanyId == _currentUser.CompanyId)
             ?? throw new KeyNotFoundException($"الفاتورة رقم {id} غير موجودة");
 
         _context.Invoices.Remove(invoice);
