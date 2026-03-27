@@ -15,8 +15,11 @@ public static class Permissions
         public const string ManageCompanies     = "platform.companies.manage";
         public const string ViewSubscriptions   = "platform.subscriptions.view";
         public const string ManageSubscriptions = "platform.subscriptions.manage";
+        public const string ViewUsers = "platform.Users.view";
+        public const string ManageUsers = "platform.Users.manage";
 
-        public static readonly string[] All = new[] { ViewCompanies, ManageCompanies, ViewSubscriptions, ManageSubscriptions };
+
+        public static readonly string[] All = new[] { ViewCompanies, ManageCompanies, ViewSubscriptions, ManageSubscriptions , ViewUsers, ManageUsers };
     }
 
     // ===== الموظفون =====
