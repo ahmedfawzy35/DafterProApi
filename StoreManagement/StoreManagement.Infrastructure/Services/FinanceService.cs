@@ -85,6 +85,54 @@ public class FinanceService : IFinanceService
         }
     }
 
+    public async Task<ReceiptReadDto> CreateCustomerRefundAsync(CreateReceiptDto dto)
+    {
+        var branchId = _currentUser.BranchId ?? 0;
+        ValidateBranch(branchId);
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var receipt = new CustomerReceipt
+            {
+                CustomerId = dto.PartnerId,
+                Amount = -dto.Amount, // Negative amount for refund
+                UnallocatedAmount = -dto.Amount,
+                Date = dto.Date,
+                Method = dto.Method,
+                Notes = dto.Notes,
+                BranchId = branchId,
+                CompanyId = _currentUser.CompanyId!.Value
+            };
+            
+            _context.CustomerReceipts.Add(receipt);
+
+            // Record in CashTransaction: Refund to customer is OUT
+            var cashTran = new CashTransaction
+            {
+                CompanyId = receipt.CompanyId,
+                Value = dto.Amount, // Positive value for cash out
+                Date = dto.Date,
+                Type = TransactionType.Out,
+                SourceType = TransactionSource.Customer,
+                RelatedEntityId = dto.PartnerId,
+                Notes = $"رديات لعميل رقم {dto.PartnerId} - الملاحظات: {dto.Notes}",
+                UserId = _currentUser.UserId!.Value
+            };
+            _context.CashTransactions.Add(cashTran);
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return MapCustomerReceiptToDto(receipt);
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
     public async Task AllocateCustomerReceiptAsync(AllocateReceiptDto dto)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -211,6 +259,54 @@ public class FinanceService : IFinanceService
                 await _context.SaveChangesAsync();
             }
 
+            await transaction.CommitAsync();
+
+            return MapSupplierPaymentToDto(payment);
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<ReceiptReadDto> CreateSupplierRefundAsync(CreateReceiptDto dto)
+    {
+        var branchId = _currentUser.BranchId ?? 0;
+        ValidateBranch(branchId);
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var payment = new SupplierPayment
+            {
+                SupplierId = dto.PartnerId,
+                Amount = -dto.Amount, // Negative amount for refund
+                UnallocatedAmount = -dto.Amount,
+                Date = dto.Date,
+                Method = dto.Method,
+                Notes = dto.Notes,
+                BranchId = branchId,
+                CompanyId = _currentUser.CompanyId!.Value
+            };
+            
+            _context.SupplierPayments.Add(payment);
+
+            // Record in CashTransaction: Refund from supplier is IN
+            var cashTran = new CashTransaction
+            {
+                CompanyId = payment.CompanyId,
+                Value = dto.Amount, // Positive value for cash in
+                Date = dto.Date,
+                Type = TransactionType.In,
+                SourceType = TransactionSource.Supplier,
+                RelatedEntityId = dto.PartnerId,
+                Notes = $"رديات من مورد رقم {dto.PartnerId} - الملاحظات: {dto.Notes}",
+                UserId = _currentUser.UserId!.Value
+            };
+            _context.CashTransactions.Add(cashTran);
+
+            await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
             return MapSupplierPaymentToDto(payment);
@@ -387,12 +483,25 @@ public class FinanceService : IFinanceService
             }
             else if (ev.EventType == "Receipt" && ev.Data is CustomerReceipt rec)
             {
-                stmt.DocumentType = "Receipt";
-                stmt.DocumentId = rec.Id;
-                stmt.Description = $"سند قبض - {rec.Method}";
-                stmt.Credit = rec.Amount;
-                runningBalance -= rec.Amount;
-                totalCredit += rec.Amount;
+                if (rec.Amount >= 0)
+                {
+                    stmt.DocumentType = "Receipt";
+                    stmt.DocumentId = rec.Id;
+                    stmt.Description = $"سند قبض - {rec.Method}";
+                    stmt.Credit = rec.Amount;
+                    runningBalance -= rec.Amount;
+                    totalCredit += rec.Amount;
+                }
+                else
+                {
+                    // Negative receipt is a Refund
+                    stmt.DocumentType = "Refund";
+                    stmt.DocumentId = rec.Id;
+                    stmt.Description = $"رد نقدي للعميل - {rec.Method}";
+                    stmt.Debit = Math.Abs(rec.Amount);
+                    runningBalance += Math.Abs(rec.Amount);
+                    totalDebit += Math.Abs(rec.Amount);
+                }
             }
 
             stmt.Balance = runningBalance;
@@ -581,12 +690,24 @@ public class FinanceService : IFinanceService
             }
             else if (ev.EventType == "Payment" && ev.Data is SupplierPayment pmt)
             {
-                stmt.DocumentType = "Payment";
-                stmt.DocumentId = pmt.Id;
-                stmt.Description = $"سند صرف - {pmt.Method}";
-                stmt.Credit = pmt.Amount;
-                runningBalance -= pmt.Amount;
-                totalCredit += pmt.Amount;
+                if (pmt.Amount >= 0)
+                {
+                    stmt.DocumentType = "Payment";
+                    stmt.DocumentId = pmt.Id;
+                    stmt.Description = $"سند صرف - {pmt.Method}";
+                    stmt.Credit = pmt.Amount;
+                    runningBalance -= pmt.Amount;
+                    totalCredit += pmt.Amount;
+                }
+                else
+                {
+                    stmt.DocumentType = "Refund";
+                    stmt.DocumentId = pmt.Id;
+                    stmt.Description = $"رد نقدي من المورد - {pmt.Method}";
+                    stmt.Debit = Math.Abs(pmt.Amount);
+                    runningBalance += Math.Abs(pmt.Amount);
+                    totalDebit += Math.Abs(pmt.Amount);
+                }
             }
 
             stmt.Balance = runningBalance;

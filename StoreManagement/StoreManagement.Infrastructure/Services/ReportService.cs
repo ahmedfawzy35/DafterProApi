@@ -53,7 +53,9 @@ public class ReportService : IReportService
                      && i.CustomerId != null)
             .ToListAsync();
 
-        // 2. تجميع المتبقي لكل عميل وتوزيعه على فترات التقادم
+        // 2. توزيع الديون على فترات التقادم
+        // ⚠️ القاعدة: الـ buckets (Current, 31-60, 61-90, Over90) تُجمع لتساوي Total دائماً
+        // UnallocatedCredit يُعرض منفصلاً بدون المسّ بالـ buckets
         var today = DateTime.UtcNow.Date;
         var reportBase = openInvoices
             .GroupBy(i => new { i.CustomerId, i.Customer!.Name, i.Customer.Code })
@@ -63,8 +65,8 @@ public class ReportService : IReportService
                 {
                     PartnerId = g.Key.CustomerId!.Value,
                     PartnerName = g.Key.Name,
-                    PartnerCode = g.Key.Code,
-                    Total = g.Sum(i => i.RemainingAmount)
+                    PartnerCode = g.Key.Code
+                    // Total محسوب تلقائياً: Total = Current + Days31_60 + Days61_90 + Over90
                 };
 
                 foreach (var inv in g)
@@ -81,8 +83,9 @@ public class ReportService : IReportService
             })
             .ToList();
 
-        // 3. إضافة رصيد المدفوعات غير المخصصة (سندات القبض المتبقية التي تقلل الدين)
-        // في تقارير أعمار الديون المعقدة تُطرح من الأقدم للأحدث، هنا سنطرحها من الإجمالي لتقريب الصورة.
+        // 3. جلب الأرصدة غير المخصصة لكل عميل (batch query واحدة)
+        //    لا تُعدَّل بها الـ buckets — تُعرض في UnallocatedCredit منفصلاً
+        //    NetBalance = Total - UnallocatedCredit هو الرقم الحقيقي للمتابعة
         var unallocatedReceipts = await _context.CustomerReceipts
             .Where(r => r.CompanyId == companyId && r.UnallocatedAmount > 0)
             .GroupBy(r => r.CustomerId)
@@ -91,16 +94,14 @@ public class ReportService : IReportService
         foreach (var row in reportBase)
         {
             if (unallocatedReceipts.TryGetValue(row.PartnerId, out var unallocated))
-            {
-                row.Total -= unallocated; // تقليل إجمالي الدين بالدفعة غير المخصصة
-                // ملاحظة: يفضل محاسبياً توزيع الخصم على الفترات (بدءاً من الأقدم)، لكن كإصدار أول نطرحه من الإجمالي للتوضيح
-            }
+                row.UnallocatedCredit = unallocated;
         }
 
+        // 4. الفلترة: نستبعد الصفوف التي NetBalance صفر أو أقل (لا دين فعلي)
         if (excludeZeroBalances)
-            reportBase = reportBase.Where(r => r.Total > 0).ToList();
+            reportBase = reportBase.Where(r => r.NetBalance > 0).ToList();
 
-        var result = reportBase.OrderByDescending(r => r.Total).ToList();
+        var result = reportBase.OrderByDescending(r => r.NetBalance).ToList();
 
         _cache.Set(cacheKey, result, ReportCacheTtl);
         return result;
@@ -132,8 +133,8 @@ public class ReportService : IReportService
                 {
                     PartnerId = g.Key.SupplierId!.Value,
                     PartnerName = g.Key.Name,
-                    PartnerCode = g.Key.Code,
-                    Total = g.Sum(i => i.RemainingAmount)
+                    PartnerCode = g.Key.Code
+                    // Total محسوب تلقائياً = Current + Days31_60 + Days61_90 + Over90
                 };
 
                 foreach (var inv in g)
@@ -150,6 +151,7 @@ public class ReportService : IReportService
             })
             .ToList();
 
+        // UnallocatedCredit منفصل — لا يعدّل الـ buckets لضمان الاتساق
         var unallocatedPayments = await _context.SupplierPayments
             .Where(p => p.CompanyId == companyId && p.UnallocatedAmount > 0)
             .GroupBy(p => p.SupplierId)
@@ -158,15 +160,13 @@ public class ReportService : IReportService
         foreach (var row in reportBase)
         {
             if (unallocatedPayments.TryGetValue(row.PartnerId, out var unallocated))
-            {
-                row.Total -= unallocated;
-            }
+                row.UnallocatedCredit = unallocated;
         }
 
         if (excludeZeroBalances)
-            reportBase = reportBase.Where(r => r.Total > 0).ToList();
+            reportBase = reportBase.Where(r => r.NetBalance > 0).ToList();
 
-        var result = reportBase.OrderByDescending(r => r.Total).ToList();
+        var result = reportBase.OrderByDescending(r => r.NetBalance).ToList();
 
         _cache.Set(cacheKey, result, ReportCacheTtl);
         return result;

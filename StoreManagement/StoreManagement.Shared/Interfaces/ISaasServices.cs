@@ -152,6 +152,7 @@ public interface IInvoiceService
     Task<DTOs.InvoiceReadDto?> GetByIdAsync(int id);
     Task<DTOs.InvoiceReadDto> CreateAsync(DTOs.CreateInvoiceDto dto);
     Task DeleteAsync(int id);
+    Task CancelAsync(int id);
 }
 /// <summary>
 /// خدمة إدارة المعاملات النقدية (Business Logic)
@@ -227,11 +228,24 @@ public interface IInventoryService
         DateTime? from,
         DateTime? to);
 
-    Task CreateAdjustmentAsync(DTOs.CreateStockAdjustmentDto dto);
+    // ===== التسويات (Adjustments) =====
+    Task<DTOs.StockAdjustmentReadDto> CreateStockAdjustmentAsync(DTOs.CreateStockAdjustmentDto dto);
+    Task<DTOs.StockAdjustmentReadDto?> GetAdjustmentByIdAsync(int id);
+    Task<PagedResult<DTOs.StockAdjustmentReadDto>> GetAllAdjustmentsAsync(DTOs.PaginationQueryDto query);
+
+    // ===== التحويلات بين الفروع (Transfers) =====
+    Task<DTOs.StockTransferReadDto> CreateStockTransferAsync(DTOs.CreateStockTransferDto dto);
+    Task<DTOs.StockTransferReadDto?> GetTransferByIdAsync(int id);
+    Task<PagedResult<DTOs.StockTransferReadDto>> GetAllTransfersAsync(DTOs.PaginationQueryDto query);
+
+    // Legacy — يُستخدم لتسجيل الرصيد الافتتاحي
     Task RegisterInitialStockAsync(int productId, double quantity, int branchId);
-    
+
     // تسجيل الكميات الخاصة بالفواتير (لا تتم إلا من خلال InvoiceService)
-    Task ProcessInvoiceStockAsync(int invoiceId, int productId, double quantity, int branchId, bool isSale, string notes);
+    Task ProcessInvoiceStockAsync(int invoiceId, int invoiceItemId, int productId, double quantity, int branchId, Enums.InvoiceType invoiceType, string notes);
+
+    // عكس كميات الفواتير في حالة الإلغاء
+    Task ReverseInvoiceStockAsync(int invoiceId, int invoiceItemId, int productId, double quantity, int branchId, Enums.InvoiceType originalInvoiceType, string notes);
 }
 
 /// <summary>
@@ -359,10 +373,12 @@ public interface IFinanceService
 {
     // ===== المقبوضات من العميل =====
     Task<DTOs.ReceiptReadDto> CreateCustomerReceiptAsync(DTOs.CreateReceiptDto dto);
+    Task<DTOs.ReceiptReadDto> CreateCustomerRefundAsync(DTOs.CreateReceiptDto dto);
     Task AllocateCustomerReceiptAsync(DTOs.AllocateReceiptDto dto);
     
     // ===== المدفوعات للمورد =====
     Task<DTOs.ReceiptReadDto> CreateSupplierPaymentAsync(DTOs.CreateReceiptDto dto);
+    Task<DTOs.ReceiptReadDto> CreateSupplierRefundAsync(DTOs.CreateReceiptDto dto);
     Task AllocateSupplierPaymentAsync(DTOs.AllocateReceiptDto dto);
 
     // ===== كشوفات وشاشات العميل =====

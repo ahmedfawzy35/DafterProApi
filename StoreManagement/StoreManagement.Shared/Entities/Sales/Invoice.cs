@@ -64,6 +64,12 @@ public class Invoice : BaseEntity, IBranchEntity
     // ملاحظات
     public string? Notes { get; set; }
 
+    // المرجع الأصلي للفاتورة (في حالة المرتجعات)
+    public int? OriginalInvoiceId { get; set; }
+    
+    // الفاتورة الأصلية المرتبطة بها هذه الفاتورة (للمرتجعات)
+    public Invoice? OriginalInvoice { get; set; }
+
     // عناصر الفاتورة التفصيلية
     public ICollection<InvoiceItem> Items { get; set; } = [];
 

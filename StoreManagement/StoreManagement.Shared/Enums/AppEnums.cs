@@ -56,7 +56,8 @@ public enum StockReferenceType
     Adjustment = 2,   // تسوية (يدوية أو جرد)
     Return = 3,       // مرتجع
     Transfer = 4,     // تحويل بين الفروع
-    InitialStock = 5  // رصيد افتتاحي
+    InitialStock = 5, // رصيد افتتاحي
+    Cancellation = 6  // إلغاء فاتورة
 }
 
 /// <summary>

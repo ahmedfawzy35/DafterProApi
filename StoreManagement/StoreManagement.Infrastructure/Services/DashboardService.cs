@@ -22,34 +22,65 @@ public class DashboardService : IDashboardService
         var today = DateTime.UtcNow.Date;
         var firstDayOfMonth = new DateTime(today.Year, today.Month, 1);
 
-        var todaySalesTotal = await _context.Invoices
-            .Where(i => i.Type == InvoiceType.Sale && i.Date >= today)
-            .SumAsync(i => i.TotalValue - i.Discount);
+        // ✅ مبيعات اليوم: Confirmed فقط + NetTotal (يشمل Tax ويطرح Discount) + خصم المرتجعات
+        var todaySales = await _context.Invoices
+            .Where(i => i.Type == InvoiceType.Sale
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Date >= today)
+            .SumAsync(i => (decimal?)i.NetTotal) ?? 0m;
 
+        var todayReturns = await _context.Invoices
+            .Where(i => i.Type == InvoiceType.SalesReturn
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Date >= today)
+            .SumAsync(i => (decimal?)i.NetTotal) ?? 0m;
+
+        var todaySalesTotal = todaySales - todayReturns;
+
+        // ✅ مصروفات اليوم (CashTransactions لا تزال المصدر الصحيح للمصروفات النقدية)
         var todayExpensesTotal = await _context.CashTransactions
             .Where(t => t.SourceType == TransactionSource.Expense && t.Date >= today)
-            .SumAsync(t => t.Value);
+            .SumAsync(t => (decimal?)t.Value) ?? 0m;
 
+        // ✅ عدد الفواتير Confirmed اليوم
         var todayInvoicesCount = await _context.Invoices
-            .CountAsync(i => i.Date >= today);
+            .CountAsync(i => i.Date >= today && i.Status == InvoiceStatus.Confirmed);
 
-        var monthlySalesTotal = await _context.Invoices
-            .Where(i => i.Type == InvoiceType.Sale && i.Date >= firstDayOfMonth)
-            .SumAsync(i => i.TotalValue - i.Discount);
+        // ✅ مبيعات الشهر: Confirmed فقط + NetTotal + خصم المرتجعات
+        var monthlySales = await _context.Invoices
+            .Where(i => i.Type == InvoiceType.Sale
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Date >= firstDayOfMonth)
+            .SumAsync(i => (decimal?)i.NetTotal) ?? 0m;
 
-        var totalCustomerDebts = await _context.Customers
-            .Where(c => c.CashBalance < 0)
-            .SumAsync(c => Math.Abs(c.CashBalance));
+        var monthlyReturns = await _context.Invoices
+            .Where(i => i.Type == InvoiceType.SalesReturn
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Date >= firstDayOfMonth)
+            .SumAsync(i => (decimal?)i.NetTotal) ?? 0m;
 
-        var totalSupplierDebts = await _context.Suppliers
-            .Where(s => s.CashBalance < 0)
-            .SumAsync(s => Math.Abs(s.CashBalance));
+        var monthlySalesTotal = monthlySales - monthlyReturns;
+
+        // ✅ ديون العملاء: مبني على NetTotal للفواتير Confirmed غير المسددة
+        var totalCustomerDebts = await _context.Invoices
+            .Where(i => i.Type == InvoiceType.Sale
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.PaymentStatus != PaymentStatus.Paid)
+            .SumAsync(i => (decimal?)(i.NetTotal - i.AllocatedAmount)) ?? 0m;
+
+        // ✅ ديون الموردين: نفس المنطق لفواتير الشراء
+        var totalSupplierDebts = await _context.Invoices
+            .Where(i => i.Type == InvoiceType.Purchase
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.PaymentStatus != PaymentStatus.Paid)
+            .SumAsync(i => (decimal?)(i.NetTotal - i.AllocatedAmount)) ?? 0m;
 
         var topProducts = await GetTopSellingProductsAsync(5);
 
         var recentInvoices = await _context.Invoices
             .Include(i => i.Customer)
             .Include(i => i.Supplier)
+            .Where(i => i.Status == InvoiceStatus.Confirmed)
             .OrderByDescending(i => i.Date)
             .Take(5)
             .Select(i => new RecentInvoiceDto
@@ -57,7 +88,7 @@ public class DashboardService : IDashboardService
                 Id = i.Id,
                 Type = i.Type.ToString(),
                 PartnerName = i.Type == InvoiceType.Sale ? i.Customer!.Name : i.Supplier!.Name,
-                TotalValue = i.TotalValue,
+                TotalValue = i.NetTotal,
                 Date = i.Date
             })
             .ToListAsync();
@@ -113,26 +144,42 @@ public class DashboardService : IDashboardService
 
     public async Task<List<DebtAlertDto>> GetDebtAlertsAsync()
     {
-        var customerDebts = await _context.Customers
-            .Where(c => c.CashBalance < 0)
-            .Select(c => new DebtAlertDto
+        var companyId = _currentUser.CompanyId!.Value;
+
+        // ديون العملاء: من فواتير البيع المؤكدة غير المسددة بالكامل
+        var customerDebts = await _context.Invoices
+            .Where(i => i.CompanyId == companyId
+                     && i.Type == InvoiceType.Sale
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.PaymentStatus != PaymentStatus.Paid
+                     && i.CustomerId != null)
+            .GroupBy(i => new { i.CustomerId, i.Customer!.Name })
+            .Select(g => new DebtAlertDto
             {
-                PartnerId = c.Id,
-                PartnerName = c.Name,
-                Amount = Math.Abs(c.CashBalance),
+                PartnerId = g.Key.CustomerId!.Value,
+                PartnerName = g.Key.Name,
+                Amount = g.Sum(i => i.NetTotal - i.AllocatedAmount),
                 Type = "Customer"
             })
+            .Where(d => d.Amount > 0)
             .ToListAsync();
 
-        var supplierDebts = await _context.Suppliers
-            .Where(s => s.CashBalance < 0)
-            .Select(s => new DebtAlertDto
+        // ديون الموردين: من فواتير الشراء المؤكدة غير المسددة بالكامل
+        var supplierDebts = await _context.Invoices
+            .Where(i => i.CompanyId == companyId
+                     && i.Type == InvoiceType.Purchase
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.PaymentStatus != PaymentStatus.Paid
+                     && i.SupplierId != null)
+            .GroupBy(i => new { i.SupplierId, i.Supplier!.Name })
+            .Select(g => new DebtAlertDto
             {
-                PartnerId = s.Id,
-                PartnerName = s.Name,
-                Amount = Math.Abs(s.CashBalance),
+                PartnerId = g.Key.SupplierId!.Value,
+                PartnerName = g.Key.Name,
+                Amount = g.Sum(i => i.NetTotal - i.AllocatedAmount),
                 Type = "Supplier"
             })
+            .Where(d => d.Amount > 0)
             .ToListAsync();
 
         return customerDebts.Concat(supplierDebts)
@@ -153,35 +200,47 @@ public class DashboardService : IDashboardService
         var firstDayLastMonth = firstDayThisMonth.AddMonths(-1);
         var firstDayNextMonth = firstDayThisMonth.AddMonths(1);
 
-        // 1. مبيعات وأرباح الشهر الحالي
+        // 1. مبيعات وأرباح الشهر الحالي (مخصوماً منها المرتجعات)
         var currentMonthSalesDetails = await _context.Invoices
             .Include(i => i.Items)
             .Where(i => i.CompanyId == companyId 
-                     && i.Type == InvoiceType.Sale 
+                     && (i.Type == InvoiceType.Sale || i.Type == InvoiceType.SalesReturn)
                      && i.Status == InvoiceStatus.Confirmed
                      && i.Date >= firstDayThisMonth && i.Date < firstDayNextMonth)
             .Select(i => new
             {
                 i.Date,
+                i.Type,
                 i.NetTotal,
                 TotalCost = i.Items.Sum(item => item.Quantity * (double)item.CostPriceAtSale)
             })
             .ToListAsync();
 
-        var monthSales = currentMonthSalesDetails.Sum(i => i.NetTotal);
-        var todaySales = currentMonthSalesDetails.Where(i => i.Date >= today).Sum(i => i.NetTotal);
+        var monthSalesTotal = currentMonthSalesDetails.Where(i => i.Type == InvoiceType.Sale).Sum(i => i.NetTotal);
+        var monthReturnTotal = currentMonthSalesDetails.Where(i => i.Type == InvoiceType.SalesReturn).Sum(i => i.NetTotal);
+        var monthSales = monthSalesTotal - monthReturnTotal;
+
+        var todaySalesTotal = currentMonthSalesDetails.Where(i => i.Date >= today && i.Type == InvoiceType.Sale).Sum(i => i.NetTotal);
+        var todayReturnTotal = currentMonthSalesDetails.Where(i => i.Date >= today && i.Type == InvoiceType.SalesReturn).Sum(i => i.NetTotal);
+        var todaySales = todaySalesTotal - todayReturnTotal;
         
-        var currentMonthCost = currentMonthSalesDetails.Sum(i => (decimal)i.TotalCost);
+        var currentMonthCostSales = currentMonthSalesDetails.Where(i => i.Type == InvoiceType.Sale).Sum(i => (decimal)i.TotalCost);
+        var currentMonthCostReturns = currentMonthSalesDetails.Where(i => i.Type == InvoiceType.SalesReturn).Sum(i => (decimal)i.TotalCost);
+        var currentMonthCost = currentMonthCostSales - currentMonthCostReturns;
+
         var monthProfit = monthSales - currentMonthCost;
         var monthMargin = monthSales > 0 ? (monthProfit / monthSales) * 100 : 0m;
 
-        // 2. مبيعات الشهر السابق للمقارنة
-        var lastMonthSales = await _context.Invoices
+        var lastMonthSalesData = await _context.Invoices
             .Where(i => i.CompanyId == companyId 
-                     && i.Type == InvoiceType.Sale 
+                     && (i.Type == InvoiceType.Sale || i.Type == InvoiceType.SalesReturn)
                      && i.Status == InvoiceStatus.Confirmed
                      && i.Date >= firstDayLastMonth && i.Date < firstDayThisMonth)
-            .SumAsync(i => i.NetTotal);
+            .Select(i => new { i.Type, i.NetTotal })
+            .ToListAsync();
+
+        var lastMonthSales = lastMonthSalesData.Where(i => i.Type == InvoiceType.Sale).Sum(i => i.NetTotal) - 
+                             lastMonthSalesData.Where(i => i.Type == InvoiceType.SalesReturn).Sum(i => i.NetTotal);
 
         var salesVsPrevious = lastMonthSales > 0 
             ? ((monthSales - lastMonthSales) / lastMonthSales) * 100 

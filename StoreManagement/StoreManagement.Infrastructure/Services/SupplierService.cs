@@ -19,6 +19,7 @@ namespace StoreManagement.Infrastructure.Services;
 ///   ✅ Phone Primary Enforcement (واحد فقط per supplier)
 ///   ✅ Audit Trail (StatusChangedAt + StatusChangedBy)
 ///   ✅ حذف آمن مع فحص FK على Invoices وPayments
+///   ✅ HasPayable filter: EF subquery قبل Pagination (batch — لا N+1)
 /// </summary>
 public class SupplierService : ISupplierService
 {
@@ -50,6 +51,8 @@ public class SupplierService : ISupplierService
 
     public async Task<PagedResult<SupplierReadDto>> GetAllAsync(SupplierFilterDto filter)
     {
+        var companyId = _currentUser.CompanyId!.Value;
+
         var query = _context.Suppliers
             .Include(s => s.Phones)
             .AsQueryable();
@@ -68,7 +71,6 @@ public class SupplierService : ISupplierService
 
         if (filter.HasOpenInvoices == true)
         {
-            var companyId = _currentUser.CompanyId!.Value;
             var suppliersWithOpenInvoices = await _context.Invoices
                 .Where(i => i.CompanyId == companyId
                          && i.Status == InvoiceStatus.Confirmed
@@ -80,6 +82,36 @@ public class SupplierService : ISupplierService
                 .ToListAsync();
 
             query = query.Where(s => suppliersWithOpenInvoices.Contains(s.Id));
+        }
+
+        // ✅ فلتر HasPayable — يُطبَّق كـ EF subquery قبل Pagination تماماً
+        // يحسب: ما تبقى من فواتير الشراء غير المسددة — مطروحاً منه سندات الصرف غير المخصصة
+        if (filter.HasPayable == true)
+        {
+            // الـ IDs التي عندها صافي مستحق مورد > 0 (batch query واحدة)
+            var payableIds = await _context.Suppliers
+                .Where(s => s.CompanyId == companyId)
+                .Where(s =>
+                    // إجمالي ما تبقى على فواتير الشراء
+                    _context.Invoices
+                        .Where(i => i.SupplierId == s.Id
+                                 && i.CompanyId == companyId
+                                 && i.Type == InvoiceType.Purchase
+                                 && i.Status == InvoiceStatus.Confirmed
+                                 && i.PaymentStatus != PaymentStatus.Paid)
+                        .Sum(i => i.NetTotal - i.AllocatedAmount)
+                    -
+                    // مطروحاً منه الدفعات غير المخصصة
+                    _context.SupplierPayments
+                        .Where(p => p.SupplierId == s.Id
+                                 && p.CompanyId == companyId
+                                 && p.UnallocatedAmount > 0)
+                        .Sum(p => p.UnallocatedAmount)
+                    > 0)
+                .Select(s => s.Id)
+                .ToListAsync();
+
+            query = query.Where(s => payableIds.Contains(s.Id));
         }
 
         var total = await query.CountAsync();
@@ -114,19 +146,6 @@ public class SupplierService : ISupplierService
                 StatusChangedBy = s.StatusChangedBy
             })
             .ToListAsync();
-
-        // فلتر HasPayable — يحتاج حساب الرصيد (Post-query)
-        if (filter.HasPayable == true)
-        {
-            var supplierIds = items.Select(s => s.Id).ToList();
-            var payables = new List<int>();
-            foreach (var sid in supplierIds)
-            {
-                var balance = await _financeService.GetSupplierCurrentBalanceAsync(sid);
-                if (balance > 0) payables.Add(sid);
-            }
-            items = items.Where(s => payables.Contains(s.Id)).ToList();
-        }
 
         return new PagedResult<SupplierReadDto>
         {
@@ -170,6 +189,7 @@ public class SupplierService : ISupplierService
             Email = dto.Email?.Trim(),
             Notes = dto.Notes?.Trim(),
             OpeningBalance = dto.OpeningBalance,
+            // ✅ CashBalance = OpeningBalance snapshot فقط — لا يُعدَّل بعدها أبداً
             CashBalance = dto.OpeningBalance,
             IsActive = true,
             CompanyId = companyId

@@ -52,10 +52,18 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin,Accountant")]
+    [Authorize(Roles = "admin,accountant")]
     public async Task<ActionResult<ApiResponse<object>>> Delete(int id)
     {
         await _invoiceService.DeleteAsync(id);
-        return Ok(ApiResponse<object>.SuccessResult("تم حذف الفاتورة بنجاح"));
+        return Ok(ApiResponse<object>.SuccessResult(null, "تم حذف الفاتورة بنجاح"));
+    }
+
+    [HttpPost("{id:int}/cancel")]
+    [Authorize(Roles = "admin,accountant")]
+    public async Task<ActionResult<ApiResponse<object>>> Cancel(int id)
+    {
+        await _invoiceService.CancelAsync(id);
+        return Ok(ApiResponse<object>.SuccessResult(null, "تم إلغاء الفاتورة بنجاح وتم فك التخصيص واسترجاع الكميات."));
     }
 }

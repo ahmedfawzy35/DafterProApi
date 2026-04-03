@@ -150,10 +150,6 @@ public class CashTransactionService : ICashTransactionService
         };
 
         _context.CashTransactions.Add(transaction);
-
-        // تحديث أرصدة العملاء/الموردين
-        await AdjustBalanceAsync(transaction, reverse: false);
-
         await _context.SaveChangesAsync();
 
         return await GetByIdDetailedAsync(transaction.Id);
@@ -164,19 +160,12 @@ public class CashTransactionService : ICashTransactionService
         var transaction = await _context.CashTransactions.FirstOrDefaultAsync(t => t.Id == id && t.CompanyId == _currentUser.CompanyId)
             ?? throw new KeyNotFoundException($"المعاملة رقم {id} غير موجودة");
 
-        // 1. عكس التأثير القديم
-        await AdjustBalanceAsync(transaction, reverse: true);
-
-        // 2. تحديث البيانات
         transaction.Type = (TransactionType)dto.Type;
         transaction.SourceType = (TransactionSource)dto.SourceType;
         transaction.Value = dto.Value;
         transaction.Date = dto.Date;
         transaction.Notes = dto.Notes;
         transaction.RelatedEntityId = dto.RelatedEntityId;
-
-        // 3. تطبيق التأثير الجديد
-        await AdjustBalanceAsync(transaction, reverse: false);
 
         await _context.SaveChangesAsync();
     }
@@ -186,38 +175,8 @@ public class CashTransactionService : ICashTransactionService
         var transaction = await _context.CashTransactions.FirstOrDefaultAsync(t => t.Id == id && t.CompanyId == _currentUser.CompanyId)
             ?? throw new KeyNotFoundException($"المعاملة رقم {id} غير موجودة");
 
-        // عكس تأثير الرصيد عند الحذف
-        await AdjustBalanceAsync(transaction, reverse: true);
-
         _context.CashTransactions.Remove(transaction);
         await _context.SaveChangesAsync();
-    }
-
-    private async Task AdjustBalanceAsync(CashTransaction transaction, bool reverse)
-    {
-        if (!transaction.RelatedEntityId.HasValue) return;
-
-        decimal factor = reverse ? -1 : 1;
-        decimal amount = transaction.Value * factor;
-
-        if (transaction.SourceType == TransactionSource.Customer)
-        {
-            var customer = await _context.Customers.FindAsync(transaction.RelatedEntityId.Value);
-            if (customer != null)
-            {
-                if (transaction.Type == TransactionType.In) customer.CashBalance += amount;
-                else customer.CashBalance -= amount;
-            }
-        }
-        else if (transaction.SourceType == TransactionSource.Supplier)
-        {
-            var supplier = await _context.Suppliers.FindAsync(transaction.RelatedEntityId.Value);
-            if (supplier != null)
-            {
-                if (transaction.Type == TransactionType.Out) supplier.CashBalance += amount;
-                else supplier.CashBalance -= amount;
-            }
-        }
     }
 
     private async Task<CashTransactionReadDto> GetByIdDetailedAsync(int id)

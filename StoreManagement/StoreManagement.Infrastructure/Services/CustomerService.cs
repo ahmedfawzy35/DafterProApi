@@ -19,6 +19,7 @@ namespace StoreManagement.Infrastructure.Services;
 ///   ✅ Phone Primary Enforcement (واحد فقط per customer)
 ///   ✅ Audit Trail (StatusChangedAt + StatusChangedBy) عند كل تفعيل/تعطيل
 ///   ✅ حذف آمن مع فحص FK على Invoices وReceipts
+///   ✅ HasDebt filter: EF subquery قبل Pagination (batch — لا N+1)
 /// </summary>
 public class CustomerService : ICustomerService
 {
@@ -52,6 +53,8 @@ public class CustomerService : ICustomerService
 
     public async Task<PagedResult<CustomerReadDto>> GetAllAsync(CustomerFilterDto filter)
     {
+        var companyId = _currentUser.CompanyId!.Value;
+
         var query = _context.Customers
             .Include(c => c.Phones)
             .AsQueryable();
@@ -73,7 +76,6 @@ public class CustomerService : ICustomerService
         // فلتر العملاء الذين لديهم فواتير مفتوحة
         if (filter.HasOpenInvoices == true)
         {
-            var companyId = _currentUser.CompanyId!.Value;
             var customersWithOpenInvoices = await _context.Invoices
                 .Where(i => i.CompanyId == companyId
                          && i.Status == InvoiceStatus.Confirmed
@@ -85,6 +87,36 @@ public class CustomerService : ICustomerService
                 .ToListAsync();
 
             query = query.Where(c => customersWithOpenInvoices.Contains(c.Id));
+        }
+
+        // ✅ فلتر HasDebt — يُطبَّق كـ EF subquery قبل Pagination تماماً
+        // يحسب: ما تبقى من فواتير البيع غير المسددة — مطروحاً منه سندات القبض غير المخصصة
+        if (filter.HasDebt == true)
+        {
+            // الـ IDs التي عندها صافي دين > 0 (batch query واحدة)
+            var debtorIds = await _context.Customers
+                .Where(c => c.CompanyId == companyId)
+                .Where(c =>
+                    // إجمالي ما تبقى على الفواتير
+                    _context.Invoices
+                        .Where(i => i.CustomerId == c.Id
+                                 && i.CompanyId == companyId
+                                 && i.Type == InvoiceType.Sale
+                                 && i.Status == InvoiceStatus.Confirmed
+                                 && i.PaymentStatus != PaymentStatus.Paid)
+                        .Sum(i => i.NetTotal - i.AllocatedAmount)
+                    -
+                    // مطروحاً منه المدفوعات غير المخصصة
+                    _context.CustomerReceipts
+                        .Where(r => r.CustomerId == c.Id
+                                 && r.CompanyId == companyId
+                                 && r.UnallocatedAmount > 0)
+                        .Sum(r => r.UnallocatedAmount)
+                    > 0)
+                .Select(c => c.Id)
+                .ToListAsync();
+
+            query = query.Where(c => debtorIds.Contains(c.Id));
         }
 
         var total = await query.CountAsync();
@@ -121,19 +153,6 @@ public class CustomerService : ICustomerService
                 StatusChangedBy = c.StatusChangedBy
             })
             .ToListAsync();
-
-        // فلتر HasDebt — يحتاج حساب الرصيد من النظام المالي (Post-query)
-        if (filter.HasDebt == true)
-        {
-            var customerIds = items.Select(c => c.Id).ToList();
-            var debtors = new List<int>();
-            foreach (var cid in customerIds)
-            {
-                var balance = await _financeService.GetCustomerCurrentBalanceAsync(cid);
-                if (balance > 0) debtors.Add(cid);
-            }
-            items = items.Where(c => debtors.Contains(c.Id)).ToList();
-        }
 
         return new PagedResult<CustomerReadDto>
         {
@@ -177,6 +196,7 @@ public class CustomerService : ICustomerService
             Email = dto.Email?.Trim(),
             Notes = dto.Notes?.Trim(),
             OpeningBalance = dto.OpeningBalance,
+            // ✅ CashBalance = OpeningBalance snapshot فقط — لا يُعدَّل بعدها أبداً
             CashBalance = dto.OpeningBalance,
             CreditLimit = dto.CreditLimit,
             IsActive = true,

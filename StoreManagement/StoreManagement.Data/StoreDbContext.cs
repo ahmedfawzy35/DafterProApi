@@ -49,6 +49,10 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
     public DbSet<StockTransaction> StockTransactions => Set<StockTransaction>();
+    public DbSet<StockAdjustment> StockAdjustments => Set<StockAdjustment>();
+    public DbSet<StockAdjustmentItem> StockAdjustmentItems => Set<StockAdjustmentItem>();
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+    public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
 
     // ===== المعاملات النقدية والديون =====
     public DbSet<CashTransaction> CashTransactions => Set<CashTransaction>();
@@ -183,6 +187,8 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
 
         builder.Entity<Invoice>().HasIndex(i => i.CompanyId);
         builder.Entity<Invoice>().HasIndex(i => new { i.CompanyId, i.Date });
+
+        builder.Entity<StockTransaction>().HasIndex(st => new { st.ReferenceType, st.ReferenceId });
 
         builder.Entity<Employee>().HasIndex(e => e.CompanyId);
 
@@ -335,6 +341,18 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.Entity<StockTransaction>()
+            .HasOne(st => st.User)
+            .WithMany()
+            .HasForeignKey(st => st.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<StockAdjustment>()
+            .HasOne(sa => sa.User)
+            .WithMany()
+            .HasForeignKey(sa => sa.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<StockTransfer>()
             .HasOne(st => st.User)
             .WithMany()
             .HasForeignKey(st => st.UserId)

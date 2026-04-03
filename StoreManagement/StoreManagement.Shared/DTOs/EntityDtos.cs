@@ -555,6 +555,9 @@ public class CreateInvoiceDto
     public int? CustomerId { get; set; }
     public int? SupplierId { get; set; }
     public int BranchId { get; set; }
+    public int? OriginalInvoiceId { get; set; }
+    public decimal Tax { get; set; }
+    public int? Status { get; set; }
     public DateTime Date { get; set; } = DateTime.UtcNow;
     public decimal Discount { get; set; }
     public decimal Paid { get; set; }
@@ -733,12 +736,67 @@ public class BranchReadDto
 
 public class CreateStockAdjustmentDto
 {
-    public int ProductId { get; set; }
-    public double Quantity { get; set; }
-    public string Type { get; set; } = "In"; // (In: توريد/جرد، Out: صرف/توالف)
-    public int? ReasonType { get; set; }
+    public int BranchId { get; set; }
     public string? Notes { get; set; }
-    public int BranchId { get; set; } // ضروري جداً
+    public List<CreateStockAdjustmentItemDto> Items { get; set; } = new();
+}
+
+public class CreateStockAdjustmentItemDto
+{
+    public int ProductId { get; set; }
+    // (+) لإضافة بضاعة، (-) لخصم بضاعة مقبولة بدلاً من تحديد IN/OUT كنص
+    public double Quantity { get; set; } 
+    public int ReasonType { get; set; }
+}
+
+public class StockAdjustmentReadDto
+{
+    public int Id { get; set; }
+    public int BranchId { get; set; }
+    public DateTime Date { get; set; }
+    public string? Notes { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public List<StockAdjustmentItemReadDto> Items { get; set; } = new();
+}
+
+public class StockAdjustmentItemReadDto
+{
+    public int ProductId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public double Quantity { get; set; }
+    public string ReasonType { get; set; } = string.Empty;
+}
+
+public class CreateStockTransferDto
+{
+    public int FromBranchId { get; set; }
+    public int ToBranchId { get; set; }
+    public string? Notes { get; set; }
+    public List<CreateStockTransferItemDto> Items { get; set; } = new();
+}
+
+public class CreateStockTransferItemDto
+{
+    public int ProductId { get; set; }
+    public double Quantity { get; set; } // يجب أن تكون قيمة موجبة
+}
+
+public class StockTransferReadDto
+{
+    public int Id { get; set; }
+    public int FromBranchId { get; set; }
+    public int ToBranchId { get; set; }
+    public DateTime Date { get; set; }
+    public string? Notes { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public List<StockTransferItemReadDto> Items { get; set; } = new();
+}
+
+public class StockTransferItemReadDto
+{
+    public int ProductId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public double Quantity { get; set; }
 }
 
 public class StockTransactionReadDto

@@ -25,19 +25,22 @@ public class InvoiceService : IInvoiceService
     private readonly IOutboxService _outboxService;
     private readonly IInventoryService _inventoryService;
     private readonly IProductService _productService;
+    private readonly IFinanceService _financeService;
 
     public InvoiceService(
         StoreDbContext context,
         ICurrentUserService currentUser,
         IOutboxService outboxService,
         IInventoryService inventoryService,
-        IProductService productService)
+        IProductService productService,
+        IFinanceService financeService)
     {
         _context = context;
         _currentUser = currentUser;
         _outboxService = outboxService;
         _inventoryService = inventoryService;
         _productService = productService;
+        _financeService = financeService;
     }
 
     public async Task<PagedResult<InvoiceReadDto>> GetAllAsync(
@@ -128,21 +131,78 @@ public class InvoiceService : IInvoiceService
             .FirstOrDefaultAsync(c => c.Id == _currentUser.CompanyId)
             ?? throw new InvalidOperationException("الشركة غير موجودة");
 
+        var invoiceTypeEnum = (InvoiceType)dto.InvoiceType;
+        var invoiceStatus = (InvoiceStatus)(dto.Status ?? (int)InvoiceStatus.Confirmed);
+
+        if (invoiceStatus == InvoiceStatus.Draft && dto.Paid > 0)
+        {
+            throw new InvalidOperationException("لا يمكن تسجيل دفعة مالية (Paid) لفاتورة مسودة (Draft).");
+        }
+
+        // Return Lineage Validation
+        if (invoiceTypeEnum == InvoiceType.SalesReturn || invoiceTypeEnum == InvoiceType.PurchaseReturn)
+        {
+            if (dto.OriginalInvoiceId == null || dto.OriginalInvoiceId <= 0)
+                throw new InvalidOperationException("الفاتورة المرتجعة يجب أن ترتبط بفاتورة أصلية (OriginalInvoiceId).");
+
+            var originalInvoice = await _context.Invoices
+                .Include(i => i.Items)
+                .FirstOrDefaultAsync(i => i.Id == dto.OriginalInvoiceId && i.CompanyId == _currentUser.CompanyId);
+
+            if (originalInvoice == null)
+                throw new InvalidOperationException("الفاتورة الأصلية غير موجودة أو لا تتبع مساحتك.");
+            
+            if (originalInvoice.Status != InvoiceStatus.Confirmed)
+                throw new InvalidOperationException("لا يمكن عمل مرتجع لفاتورة غير مؤكدة.");
+
+            if ((invoiceTypeEnum == InvoiceType.SalesReturn && originalInvoice.Type != InvoiceType.Sale) ||
+                (invoiceTypeEnum == InvoiceType.PurchaseReturn && originalInvoice.Type != InvoiceType.Purchase))
+                throw new InvalidOperationException("نوع المرتجع لا يتطابق مع نوع الفاتورة الأصلية.");
+
+            // Validate Quantities
+            var previousReturns = await _context.Invoices
+                .Include(i => i.Items)
+                .Where(i => i.OriginalInvoiceId == dto.OriginalInvoiceId && i.Status == InvoiceStatus.Confirmed && i.Id != dto.OriginalInvoiceId)
+                .ToListAsync();
+
+            foreach (var itemDto in dto.Items)
+            {
+                var originalItem = originalInvoice.Items.FirstOrDefault(i => i.ProductId == itemDto.ProductId)
+                    ?? throw new InvalidOperationException($"المنتج رقم {itemDto.ProductId} لم يكن موجوداً في الفاتورة الأصلية.");
+
+                var alreadyReturnedQty = previousReturns
+                    .SelectMany(i => i.Items)
+                    .Where(i => i.ProductId == itemDto.ProductId)
+                    .Sum(i => i.Quantity);
+
+                if (alreadyReturnedQty + itemDto.Quantity > originalItem.Quantity)
+                    throw new InvalidOperationException($"الكمية المرتجعة للمنتج {itemDto.ProductId} تتجاوز الكمية الأصلية المتبقية للاسترجاع (المسموح: {originalItem.Quantity - alreadyReturnedQty}).");
+            }
+        }
+
+        var branchId = dto.BranchId > 0 ? dto.BranchId : (_currentUser.BranchId ?? throw new ArgumentException("معرف الفرع ضروري"));
+
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
             var invoice = new Invoice
             {
-                Type = (InvoiceType)dto.InvoiceType,
+                Type = invoiceTypeEnum,
                 CustomerId = dto.CustomerId, SupplierId = dto.SupplierId,
-                Date = dto.Date, Discount = dto.Discount, Paid = dto.Paid,
-                IsInstallment = dto.IsInstallment, Notes = dto.Notes,
+                Date = dto.Date, Discount = dto.Discount, 
+                Tax = dto.Tax, Status = invoiceStatus,
+                Paid = dto.Paid, IsInstallment = dto.IsInstallment, 
+                Notes = dto.Notes,
+                BranchId = branchId,
+                OriginalInvoiceId = dto.OriginalInvoiceId,
                 CompanyId = _currentUser.CompanyId!.Value
             };
 
             decimal totalValue = 0;
-            var isSale = (InvoiceType)dto.InvoiceType == InvoiceType.Sale;
-            var isPurchase = (InvoiceType)dto.InvoiceType == InvoiceType.Purchase;
+            var isSale = invoiceTypeEnum == InvoiceType.Sale;
+            var isPurchase = invoiceTypeEnum == InvoiceType.Purchase;
+            var isSalesReturn = invoiceTypeEnum == InvoiceType.SalesReturn;
+            var isPurchaseReturn = invoiceTypeEnum == InvoiceType.PurchaseReturn;
 
             foreach (var itemDto in dto.Items)
             {
@@ -161,32 +221,45 @@ public class InvoiceService : IInvoiceService
             }
 
             invoice.TotalValue = totalValue;
+
+            // ✅ Validation: Paid لا يجب أن يتجاوز NetTotal = (TotalValue - Discount + Tax)
+            // NetTotal هنا لم يُحفظ بعد (computed property)، لذا نحسبه يدوياً
+            var computedNetTotal = totalValue - dto.Discount + dto.Tax;
+            if (dto.Paid > computedNetTotal)
+                throw new ArgumentException(
+                    $"المبلغ المدفوع ({dto.Paid:F2}) يتجاوز صافي قيمة الفاتورة ({computedNetTotal:F2}). " +
+                    $"الحد الأقصى المسموح = NetTotal (الإجمالي - الخصم + الضريبة).");
+
             _context.Invoices.Add(invoice);
 
             // نحفظ الفاتورة أولاً للحصول على Invoice.Id الخاص بها
             await _context.SaveChangesAsync();
 
             // معالجة المخزون والتكلفة بعد حفظ الفاتورة (داخل نفس الـ Transaction)
-            foreach (var itemDto in dto.Items)
+            if (invoice.Status == InvoiceStatus.Confirmed)
             {
-                if (company.ManageInventory)
+                foreach (var item in invoice.Items)
                 {
-                    await _inventoryService.ProcessInvoiceStockAsync(
-                        invoiceId: invoice.Id,
-                        productId: itemDto.ProductId,
-                        quantity: itemDto.Quantity,
-                        branchId: dto.BranchId,
-                        isSale: isSale,
-                        notes: $"حركة مرتبطة بالفاتورة {invoice.Id}");
-                }
+                    if (company.ManageInventory)
+                    {
+                        await _inventoryService.ProcessInvoiceStockAsync(
+                            invoiceId: invoice.Id,
+                            invoiceItemId: item.Id,
+                            productId: item.ProductId,
+                            quantity: item.Quantity,
+                            branchId: invoice.BranchId,
+                            invoiceType: invoice.Type,
+                            notes: $"حركة مرتبطة بالفاتورة {invoice.Id}");
+                    }
 
-                // تحديث سعر التكلفة إذا كانت الفاتورة مشتريات (آخر تكلفة شراء)
-                if (isPurchase)
-                {
-                    await _productService.UpdateCostPriceAsync(
-                        productId: itemDto.ProductId,
-                        newCost: itemDto.UnitPrice,
-                        reason: $"فاتورة مشتريات رقم {invoice.Id}");
+                    // تحديث سعر التكلفة إذا كانت الفاتورة مشتريات (آخر تكلفة شراء)
+                    if (isPurchase)
+                    {
+                        await _productService.UpdateCostPriceAsync(
+                            productId: item.ProductId,
+                            newCost: item.UnitPrice,
+                            reason: $"فاتورة مشتريات رقم {invoice.Id}");
+                    }
                 }
             }
 
@@ -202,22 +275,39 @@ public class InvoiceService : IInvoiceService
 
             await _context.SaveChangesAsync();
 
-            // سجل حركة نقدية تلقائية إذا تم دفع مبلغ
-            if (invoice.Paid > 0)
+            // سجل حركة نقدية أو سند وفق النظام المالي الحديث إذا تم دفع مبلغ وكانت مؤكدة
+            // ✅ نستخدم Min(Paid, NetTotal) كـ ceiling إضافي للحماية من أي bypass مستقبلي
+            var effectivePaid = Math.Min(invoice.Paid, invoice.NetTotal);
+            if (effectivePaid > 0 && invoice.Status == InvoiceStatus.Confirmed)
             {
-                var cashTransaction = new CashTransaction
+                var receiptDto = new CreateReceiptDto
                 {
-                    Type = isSale ? TransactionType.In : TransactionType.Out,
-                    SourceType = isSale ? TransactionSource.Customer : TransactionSource.Supplier,
-                    Value = invoice.Paid,
+                    PartnerId = invoice.CustomerId ?? invoice.SupplierId ?? 0,
+                    Amount = effectivePaid,
                     Date = invoice.Date,
-                    Notes = $"دفع تلقائي للفاتورة رقم {invoice.Id}",
-                    RelatedEntityId = isSale ? invoice.CustomerId : invoice.SupplierId,
-                    CompanyId = (int)_currentUser.CompanyId!,
-                    UserId = (int)_currentUser.UserId!
+                    Method = PaymentMethod.Cash,
+                    Notes = $"معاملة مالية مع الفاتورة رقم {invoice.Id}",
+                    AutoAllocate = true
                 };
-                _context.CashTransactions.Add(cashTransaction);
-                await _context.SaveChangesAsync();
+
+                if (isSale)
+                {
+                    await _financeService.CreateCustomerReceiptAsync(receiptDto);
+                }
+                else if (isPurchase)
+                {
+                    await _financeService.CreateSupplierPaymentAsync(receiptDto);
+                }
+                else if (isSalesReturn)
+                {
+                    receiptDto.AutoAllocate = false; // المرتجع لا يُخصص تلقائياً — تسوية مستقلة
+                    await _financeService.CreateCustomerRefundAsync(receiptDto);
+                }
+                else if (isPurchaseReturn)
+                {
+                    receiptDto.AutoAllocate = false;
+                    await _financeService.CreateSupplierRefundAsync(receiptDto);
+                }
             }
 
             await transaction.CommitAsync();
@@ -247,8 +337,93 @@ public class InvoiceService : IInvoiceService
         var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.Id == id && i.CompanyId == _currentUser.CompanyId)
             ?? throw new KeyNotFoundException($"الفاتورة رقم {id} غير موجودة");
 
+        if (invoice.Status != InvoiceStatus.Draft)
+        {
+            throw new InvalidOperationException("لا يمكن حذف فاتورة غير مسودة. استخدم Cancellation (الإلغاء).");
+        }
+
         _context.Invoices.Remove(invoice);
         await _context.SaveChangesAsync();
+    }
+
+    public async Task CancelAsync(int id)
+    {
+        var invoice = await _context.Invoices
+            .Include(i => i.Items)
+            .Include(i => i.CustomerAllocations) // Includes allocations if Sale/SalesReturn (we can reverse them)
+            .Include(i => i.SupplierAllocations) 
+            .FirstOrDefaultAsync(i => i.Id == id && i.CompanyId == _currentUser.CompanyId)
+            ?? throw new KeyNotFoundException($"الفاتورة رقم {id} غير موجودة");
+
+        if (invoice.Status == InvoiceStatus.Cancelled)
+            throw new InvalidOperationException("الفاتورة ملغية بالفعل.");
+
+        if (invoice.Status == InvoiceStatus.Draft)
+            throw new InvalidOperationException("لا يمكن إلغاء فاتورة مسودة. يمكنك حذفها باستخدام (Delete).");
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            invoice.Status = InvoiceStatus.Cancelled;
+
+            // Reverse Inventory manually via InventoryService
+            var company = await _context.Companies
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.Id == _currentUser.CompanyId);
+
+            if (company != null && company.ManageInventory)
+            {
+                foreach (var item in invoice.Items)
+                {
+                    await _inventoryService.ReverseInvoiceStockAsync(
+                        invoiceId: invoice.Id,
+                        invoiceItemId: item.Id,
+                        productId: item.ProductId,
+                        quantity: item.Quantity,
+                        branchId: invoice.BranchId,
+                        originalInvoiceType: invoice.Type,
+                        notes: $"إلغاء الفاتورة {invoice.Id}");
+                }
+            }
+
+            // Reverse financial allocations
+            if (invoice.CustomerAllocations != null && invoice.CustomerAllocations.Any())
+            {
+                foreach (var alloc in invoice.CustomerAllocations.ToList())
+                {
+                    var receipt = await _context.CustomerReceipts.FindAsync(alloc.CustomerReceiptId);
+                    if (receipt != null)
+                    {
+                        receipt.UnallocatedAmount += alloc.Amount;
+                    }
+                    _context.CustomerReceiptAllocations.Remove(alloc);
+                }
+            }
+
+            if (invoice.SupplierAllocations != null && invoice.SupplierAllocations.Any())
+            {
+                foreach (var alloc in invoice.SupplierAllocations.ToList())
+                {
+                    var payment = await _context.SupplierPayments.FindAsync(alloc.SupplierPaymentId);
+                    if (payment != null)
+                    {
+                        payment.UnallocatedAmount += alloc.Amount;
+                    }
+                    _context.SupplierPaymentAllocations.Remove(alloc);
+                }
+            }
+
+            invoice.AllocatedAmount = 0;
+            invoice.PaymentStatus = PaymentStatus.Unpaid;
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 }
 

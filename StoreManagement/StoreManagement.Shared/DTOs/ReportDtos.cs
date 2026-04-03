@@ -19,7 +19,13 @@ public class AgingReportRowDto
     public decimal Over90 { get; set; }      // أكثر من 90 يوم
     
     // إجمالي الدين المتبقي
-    public decimal Total { get; set; }
+    public decimal Total => Current + Days31_60 + Days61_90 + Over90;
+    
+    // الرصيد غير المخصص
+    public decimal UnallocatedCredit { get; set; }
+    
+    // صافي الرصيد
+    public decimal NetBalance => Total - UnallocatedCredit;
 }
 
 /// <summary>
@@ -81,4 +87,3 @@ public class DashboardKpiDto
     public int LowStockItemsCount { get; set; }
     public int OpenCustomerInvoices { get; set; }
 }
-

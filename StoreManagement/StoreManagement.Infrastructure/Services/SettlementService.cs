@@ -2,13 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.DTOs;
-using StoreManagement.Shared.Entities.HR;
-using StoreManagement.Shared.Entities.Inventory;
-using StoreManagement.Shared.Entities.Sales;
 using StoreManagement.Shared.Entities.Finance;
-using StoreManagement.Shared.Entities.Identity;
-using StoreManagement.Shared.Entities.Partners;
-using StoreManagement.Shared.Entities.Configuration;
 using StoreManagement.Shared.Entities.Core;
 using StoreManagement.Shared.Enums;
 using StoreManagement.Shared.Interfaces;
@@ -41,47 +35,52 @@ public class SettlementService : ISettlementService
         if (!string.IsNullOrWhiteSpace(query.Search))
             baseQuery = baseQuery.Where(s => s.Notes != null && s.Notes.Contains(query.Search));
 
-        var company = await _context.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == _currentUser.CompanyId);
+        var company = await _context.Companies.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => c.Id == _currentUser.CompanyId);
         var merchantName = company?.Name ?? "DafterPro";
 
+        // جلب IDs المرتبطة دفعة واحدة لتجنب N+1
+        var customerIds = await baseQuery
+            .Where(s => s.SourceType == SettlementSource.Customer)
+            .Select(s => s.RelatedEntityId)
+            .Distinct()
+            .ToListAsync();
+
+        var supplierIds = await baseQuery
+            .Where(s => s.SourceType == SettlementSource.Supplier)
+            .Select(s => s.RelatedEntityId)
+            .Distinct()
+            .ToListAsync();
+
+        var customers = await _context.Customers.IgnoreQueryFilters()
+            .Where(c => customerIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name);
+
+        var suppliers = await _context.Suppliers.IgnoreQueryFilters()
+            .Where(s => supplierIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.Name);
+
         var total = await baseQuery.CountAsync();
-        var items = await baseQuery
+        var rawItems = await baseQuery
             .OrderByDescending(s => s.Date)
             .Skip((query.PageNumber - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(s => new SettlementReadDto
-            {
-                Id = s.Id,
-                SourceType = s.SourceType.ToString(),
-                Type = s.Type.ToString(),
-                Amount = s.Amount,
-                Date = s.Date,
-                Notes = s.Notes,
-                UserName = s.User.UserName ?? "Unknown",
-                MerchantName = merchantName
-            })
             .ToListAsync();
 
-        // ملاءمة أسماء الكيانات المرتبطة (العملاء أو الموردين)
-        // ملاحظة: لإبقاء الكود بسيطاً وسريعاً، يمكننا جلب الأسماء في كود الـ C# أو استخدام Join
-        // هنا سنقوم بجلبها بشكل منفصل لتجنب تعقيد الـ Query
-        foreach (var item in items)
+        var items = rawItems.Select(s => new SettlementReadDto
         {
-            var settlement = await _context.AccountSettlements.FindAsync(item.Id);
-            if (settlement != null)
-            {
-                if (settlement.SourceType == SettlementSource.Customer)
-                {
-                    var customer = await _context.Customers.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == settlement.RelatedEntityId);
-                    item.RelatedEntityName = customer?.Name;
-                }
-                else
-                {
-                    var supplier = await _context.Suppliers.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == settlement.RelatedEntityId);
-                    item.RelatedEntityName = supplier?.Name;
-                }
-            }
-        }
+            Id = s.Id,
+            SourceType = s.SourceType.ToString(),
+            RelatedEntityName = s.SourceType == SettlementSource.Customer
+                ? customers.GetValueOrDefault(s.RelatedEntityId)
+                : suppliers.GetValueOrDefault(s.RelatedEntityId),
+            Type = s.Type.ToString(),
+            Amount = s.Amount,
+            Date = s.Date,
+            Notes = s.Notes,
+            UserName = s.User?.UserName ?? "Unknown",
+            MerchantName = merchantName
+        }).ToList();
 
         return new PagedResult<SettlementReadDto>
         {
@@ -97,6 +96,23 @@ public class SettlementService : ISettlementService
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
+            // التحقق من وجود الكيان المرتبط
+            string? partnerName = null;
+            if ((SettlementSource)dto.SourceType == SettlementSource.Customer)
+            {
+                var customer = await _context.Customers.FindAsync(dto.RelatedEntityId)
+                    ?? throw new KeyNotFoundException($"العميل رقم {dto.RelatedEntityId} غير موجود");
+                partnerName = customer.Name;
+            }
+            else
+            {
+                var supplier = await _context.Suppliers.FindAsync(dto.RelatedEntityId)
+                    ?? throw new KeyNotFoundException($"المورد رقم {dto.RelatedEntityId} غير موجود");
+                partnerName = supplier.Name;
+            }
+
+            // تسجيل مستند التسوية فقط — لا تعديل على CashBalance
+            // الرصيد يُحسب من Receipts/Invoices/Settlements بشكل ديناميكي
             var settlement = new AccountSettlement
             {
                 SourceType = (SettlementSource)dto.SourceType,
@@ -109,44 +125,25 @@ public class SettlementService : ISettlementService
                 UserId = (int)_currentUser.UserId!
             };
 
-            // تحديث الأرصدة
-            if (settlement.SourceType == SettlementSource.Customer)
-            {
-                var customer = await _context.Customers.FindAsync(dto.RelatedEntityId)
-                    ?? throw new KeyNotFoundException($"العميل رقم {dto.RelatedEntityId} غير موجود");
-                
-                // إضافة رصيد (Add): العميل له فلوس أكثر (أو عليه أقل) -> زيادة CashBalance
-                // خصم رصيد (Subtract): العميل عليه فلوس أكثر -> نقص CashBalance
-                if (settlement.Type == SettlementType.Add) customer.CashBalance += settlement.Amount;
-                else customer.CashBalance -= settlement.Amount;
-            }
-            else
-            {
-                var supplier = await _context.Suppliers.FindAsync(dto.RelatedEntityId)
-                    ?? throw new KeyNotFoundException($"المورد رقم {dto.RelatedEntityId} غير موجود");
-
-                if (settlement.Type == SettlementType.Add) supplier.CashBalance += settlement.Amount;
-                else supplier.CashBalance -= settlement.Amount;
-            }
-
             _context.AccountSettlements.Add(settlement);
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
             var user = await _context.Users.FindAsync(_currentUser.UserId);
-
-            var companyEntity = await _context.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == settlement.CompanyId);
+            var company = await _context.Companies.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(c => c.Id == settlement.CompanyId);
 
             return new SettlementReadDto
             {
                 Id = settlement.Id,
                 SourceType = settlement.SourceType.ToString(),
+                RelatedEntityName = partnerName,
                 Type = settlement.Type.ToString(),
                 Amount = settlement.Amount,
                 Date = settlement.Date,
                 Notes = settlement.Notes,
                 UserName = user?.UserName ?? "Unknown",
-                MerchantName = companyEntity?.Name ?? "DafterPro"
+                MerchantName = company?.Name ?? "DafterPro"
             };
         }
         catch
