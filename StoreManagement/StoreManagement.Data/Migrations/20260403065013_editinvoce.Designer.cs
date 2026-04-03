@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StoreManagement.Data;
 
@@ -11,9 +12,11 @@ using StoreManagement.Data;
 namespace StoreManagement.Data.Migrations
 {
     [DbContext(typeof(StoreDbContext))]
-    partial class StoreDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260403065013_editinvoce")]
+    partial class editinvoce
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1629,12 +1632,6 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("BarcodeType")
                         .HasColumnType("int");
 
-                    b.Property<string>("Brand")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("CategoryId")
-                        .HasColumnType("int");
-
                     b.Property<int>("CompanyId")
                         .HasColumnType("int");
 
@@ -1647,25 +1644,10 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsBarcodeGenerated")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsPurchasable")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsSellable")
                         .HasColumnType("bit");
 
                     b.Property<double>("MinimumStock")
@@ -1681,16 +1663,10 @@ namespace StoreManagement.Data.Migrations
                     b.Property<decimal>("Price")
                         .HasColumnType("decimal(18,4)");
 
-                    b.Property<double>("ReorderLevel")
-                        .HasColumnType("float");
-
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
-
-                    b.Property<string>("SKU")
-                        .HasColumnType("nvarchar(450)");
 
                     b.Property<double>("StockQuantity")
                         .HasColumnType("float");
@@ -1701,130 +1677,17 @@ namespace StoreManagement.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CategoryId");
-
                     b.HasIndex("CompanyId");
-
-                    b.HasIndex("IsActive");
 
                     b.HasIndex("CompanyId", "Barcode")
                         .IsUnique()
-                        .HasFilter("[Barcode] != '' AND [IsDeleted] = 0");
+                        .HasFilter("[Barcode] != ''");
 
                     b.HasIndex("CompanyId", "Name")
                         .IsUnique()
                         .HasFilter("[IsDeleted] = 0");
 
-                    b.HasIndex("CompanyId", "SKU")
-                        .IsUnique()
-                        .HasFilter("[SKU] IS NOT NULL AND [SKU] != '' AND [IsDeleted] = 0");
-
                     b.ToTable("Products");
-                });
-
-            modelBuilder.Entity("StoreManagement.Shared.Entities.Inventory.ProductCategory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CompanyId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("EditCount")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("ParentCategoryId")
-                        .HasColumnType("int");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ParentCategoryId");
-
-                    b.ToTable("ProductCategories");
-                });
-
-            modelBuilder.Entity("StoreManagement.Shared.Entities.Inventory.ProductCostHistory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CompanyId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("EditCount")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("NewCost")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("OldCost")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("ProductId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId");
-
-                    b.ToTable("ProductCostHistories");
                 });
 
             modelBuilder.Entity("StoreManagement.Shared.Entities.Inventory.ProductImage", b =>
@@ -1845,9 +1708,6 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
@@ -1862,12 +1722,6 @@ namespace StoreManagement.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<double>("AfterQuantity")
-                        .HasColumnType("float");
-
-                    b.Property<double>("BeforeQuantity")
-                        .HasColumnType("float");
 
                     b.Property<int>("BranchId")
                         .HasColumnType("int");
@@ -1907,15 +1761,6 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<double>("Quantity")
                         .HasColumnType("float");
-
-                    b.Property<int?>("ReasonType")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ReferenceId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ReferenceType")
-                        .HasColumnType("int");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -2609,37 +2454,6 @@ namespace StoreManagement.Data.Migrations
                     b.Navigation("Company");
                 });
 
-            modelBuilder.Entity("StoreManagement.Shared.Entities.Inventory.Product", b =>
-                {
-                    b.HasOne("StoreManagement.Shared.Entities.Inventory.ProductCategory", "Category")
-                        .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Category");
-                });
-
-            modelBuilder.Entity("StoreManagement.Shared.Entities.Inventory.ProductCategory", b =>
-                {
-                    b.HasOne("StoreManagement.Shared.Entities.Inventory.ProductCategory", "ParentCategory")
-                        .WithMany("SubCategories")
-                        .HasForeignKey("ParentCategoryId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("ParentCategory");
-                });
-
-            modelBuilder.Entity("StoreManagement.Shared.Entities.Inventory.ProductCostHistory", b =>
-                {
-                    b.HasOne("StoreManagement.Shared.Entities.Inventory.Product", "Product")
-                        .WithMany("CostHistories")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-                });
-
             modelBuilder.Entity("StoreManagement.Shared.Entities.Inventory.ProductImage", b =>
                 {
                     b.HasOne("StoreManagement.Shared.Entities.Inventory.Product", "Product")
@@ -2658,7 +2472,7 @@ namespace StoreManagement.Data.Migrations
                         .HasForeignKey("InvoiceItemId");
 
                     b.HasOne("StoreManagement.Shared.Entities.Inventory.Product", "Product")
-                        .WithMany("StockTransactions")
+                        .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -2800,16 +2614,7 @@ namespace StoreManagement.Data.Migrations
 
             modelBuilder.Entity("StoreManagement.Shared.Entities.Inventory.Product", b =>
                 {
-                    b.Navigation("CostHistories");
-
                     b.Navigation("ProductImages");
-
-                    b.Navigation("StockTransactions");
-                });
-
-            modelBuilder.Entity("StoreManagement.Shared.Entities.Inventory.ProductCategory", b =>
-                {
-                    b.Navigation("SubCategories");
                 });
 
             modelBuilder.Entity("StoreManagement.Shared.Entities.Partners.Customer", b =>

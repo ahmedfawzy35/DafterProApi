@@ -36,6 +36,23 @@ public class StockTransaction : BaseEntity, IBranchEntity
     // ملاحظات إضافية
     public string? Notes { get; set; }
 
+    // ===== التفاصيل المرجعية والتتبع =====
+
+    // نوع المستند المرجعي (فاتورة، تسوية، الخ)
+    public StockReferenceType? ReferenceType { get; set; }
+
+    // معرف المستند المرجعي المرتبط (على سبيل المثال InvoiceId أو AdjustmentId)
+    public int? ReferenceId { get; set; }
+
+    // سبب التسوية في حال كانت تسوية يدوية (Adjustment)
+    public StockAdjustmentReason? ReasonType { get; set; }
+
+    // الكمية قبل الحركة (Audit)
+    public double BeforeQuantity { get; set; }
+
+    // الكمية بعد الحركة (Audit)
+    public double AfterQuantity { get; set; }
+
     // معرف المستخدم الذي سجّل الحركة
     public int UserId { get; set; }
 

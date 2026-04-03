@@ -23,15 +23,21 @@ public class InvoiceService : IInvoiceService
     private readonly StoreDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IOutboxService _outboxService;
+    private readonly IInventoryService _inventoryService;
+    private readonly IProductService _productService;
 
     public InvoiceService(
         StoreDbContext context,
         ICurrentUserService currentUser,
-        IOutboxService outboxService)
+        IOutboxService outboxService,
+        IInventoryService inventoryService,
+        IProductService productService)
     {
         _context = context;
         _currentUser = currentUser;
         _outboxService = outboxService;
+        _inventoryService = inventoryService;
+        _productService = productService;
     }
 
     public async Task<PagedResult<InvoiceReadDto>> GetAllAsync(
@@ -143,26 +149,6 @@ public class InvoiceService : IInvoiceService
                 var product = await _context.Products.FindAsync(itemDto.ProductId)
                     ?? throw new KeyNotFoundException($"المنتج رقم {itemDto.ProductId} غير موجود");
 
-                if (company.ManageInventory)
-                {
-                    if (isSale && product.StockQuantity < itemDto.Quantity)
-                        throw new InvalidOperationException(
-                            $"الكمية المتاحة للمنتج '{product.Name}' غير كافية ({product.StockQuantity})");
-
-                    if (isSale) product.StockQuantity -= itemDto.Quantity;
-                    else if (isPurchase) product.StockQuantity += itemDto.Quantity;
-
-                    // حفظ حركة المخزون في Outbox
-                    await _outboxService.PublishAsync("StockUpdated", new
-                    {
-                        ProductId = itemDto.ProductId,
-                        Quantity = itemDto.Quantity,
-                        MovementType = isSale ? "Out" : "In",
-                        CompanyId = _currentUser.CompanyId,
-                        Timestamp = DateTime.UtcNow
-                    });
-                }
-
                 invoice.Items.Add(new InvoiceItem
                 {
                     ProductId = itemDto.ProductId,
@@ -175,6 +161,33 @@ public class InvoiceService : IInvoiceService
 
             invoice.TotalValue = totalValue;
             _context.Invoices.Add(invoice);
+
+            // نحفظ الفاتورة أولاً للحصول على Invoice.Id الخاص بها
+            await _context.SaveChangesAsync();
+
+            // معالجة المخزون والتكلفة بعد حفظ الفاتورة (داخل نفس الـ Transaction)
+            foreach (var itemDto in dto.Items)
+            {
+                if (company.ManageInventory)
+                {
+                    await _inventoryService.ProcessInvoiceStockAsync(
+                        invoiceId: invoice.Id,
+                        productId: itemDto.ProductId,
+                        quantity: itemDto.Quantity,
+                        branchId: dto.BranchId,
+                        isSale: isSale,
+                        notes: $"حركة مرتبطة بالفاتورة {invoice.Id}");
+                }
+
+                // تحديث سعر التكلفة إذا كانت الفاتورة مشتريات (آخر تكلفة شراء)
+                if (isPurchase)
+                {
+                    await _productService.UpdateCostPriceAsync(
+                        productId: itemDto.ProductId,
+                        newCost: itemDto.UnitPrice,
+                        reason: $"فاتورة مشتريات رقم {invoice.Id}");
+                }
+            }
 
             // حفظ Event الفاتورة في Outbox
             await _outboxService.PublishAsync("InvoiceCreated", new
@@ -216,7 +229,12 @@ public class InvoiceService : IInvoiceService
                 InvoiceType = invoice.Type.ToString()
             };
         }
-        catch
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync();
+            throw new InvalidOperationException("تم تعديل رصيد المنتج بواسطة عملية أخرى، يرجى تحديث البيانات وإعادة المحاولة. (Concurrency Conflict)");
+        }
+        catch (Exception)
         {
             await transaction.RollbackAsync();
             throw;

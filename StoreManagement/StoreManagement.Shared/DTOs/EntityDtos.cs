@@ -58,6 +58,27 @@ public class SupplierReadDto
     public DateTime CreatedDate { get; set; }
 }
 
+// ===== DTOs خاصة بتصنيف المنتج (Category) =====
+
+public class CreateProductCategoryDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
+public class UpdateProductCategoryDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
+public class ProductCategoryReadDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
 // ===== DTOs خاصة بالمنتج =====
 
 public class CreateProductDto
@@ -66,6 +87,14 @@ public class CreateProductDto
     public decimal Price { get; set; }
     public decimal CostPrice { get; set; }
     public string Unit { get; set; } = "قطعة";
+    public string? SKU { get; set; }
+    public string? Description { get; set; }
+    public string? Brand { get; set; }
+    public int? CategoryId { get; set; }
+    public double MinimumStock { get; set; }
+    public double ReorderLevel { get; set; }
+    public bool IsSellable { get; set; } = true;
+    public bool IsPurchasable { get; set; } = true;
 
     // باركود اختياري — إذا أُرسل يُعامَل كباركود مصنعي
     public string? Barcode { get; set; }
@@ -78,6 +107,15 @@ public class UpdateProductDto
     public decimal Price { get; set; }
     public decimal CostPrice { get; set; }
     public string Unit { get; set; } = "قطعة";
+    public string? SKU { get; set; }
+    public string? Description { get; set; }
+    public string? Brand { get; set; }
+    public int? CategoryId { get; set; }
+    public double MinimumStock { get; set; }
+    public double ReorderLevel { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool IsSellable { get; set; } = true;
+    public bool IsPurchasable { get; set; } = true;
 
     // تحديث الباركود — مقيَّد بسياسة (Generated → Factory فقط)
     public string? Barcode { get; set; }
@@ -91,13 +129,35 @@ public class ProductReadDto
     public decimal Price { get; set; }
     public decimal CostPrice { get; set; }
     public double StockQuantity { get; set; }
+    public double MinimumStock { get; set; }
+    public double ReorderLevel { get; set; }
     public string Unit { get; set; } = string.Empty;
+    public string? SKU { get; set; }
+    public string? Description { get; set; }
+    public string? Brand { get; set; }
+    public int? CategoryId { get; set; }
+    public string? CategoryName { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsSellable { get; set; }
+    public bool IsPurchasable { get; set; }
     public string? ThumbnailUrl { get; set; }
 
     // بيانات الباركود
     public string Barcode { get; set; } = string.Empty;
     public string BarcodeType { get; set; } = string.Empty;
     public string BarcodeFormat { get; set; } = string.Empty;
+}
+
+public class ProductSummaryDto
+{
+    public int ProductId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public double CurrentStock { get; set; }
+    public decimal CurrentCost { get; set; }
+    public decimal CurrentPrice { get; set; }
+    public DateTime? LastMovementDate { get; set; }
+    public string? CategoryName { get; set; }
+    public string? Brand { get; set; }
 }
 
 /// <summary>
@@ -121,6 +181,7 @@ public class CreateInvoiceDto
     public int InvoiceType { get; set; }
     public int? CustomerId { get; set; }
     public int? SupplierId { get; set; }
+    public int BranchId { get; set; }
     public DateTime Date { get; set; } = DateTime.UtcNow;
     public decimal Discount { get; set; }
     public decimal Paid { get; set; }
@@ -146,8 +207,13 @@ public class InvoiceReadDto
     public DateTime Date { get; set; }
     public decimal TotalValue { get; set; }
     public decimal Discount { get; set; }
-    public decimal Paid { get; set; }
-    public decimal Remaining => TotalValue - Discount - Paid;
+    public decimal Tax { get; set; }
+    public decimal NetTotal => TotalValue - Discount + Tax;
+    public decimal Paid { get; set; } // Legacy
+    public decimal AllocatedAmount { get; set; }
+    public decimal Remaining => NetTotal - AllocatedAmount;
+    public string Status { get; set; } = string.Empty;
+    public string PaymentStatus { get; set; } = string.Empty;
     public bool IsInstallment { get; set; }
     public List<InvoiceItemReadDto> Items { get; set; } = [];
 }
@@ -297,7 +363,9 @@ public class CreateStockAdjustmentDto
     public int ProductId { get; set; }
     public double Quantity { get; set; }
     public string Type { get; set; } = "In"; // (In: توريد/جرد، Out: صرف/توالف)
+    public int? ReasonType { get; set; }
     public string? Notes { get; set; }
+    public int BranchId { get; set; } // ضروري جداً
 }
 
 public class StockTransactionReadDto
@@ -306,7 +374,11 @@ public class StockTransactionReadDto
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public double Quantity { get; set; }
+    public double BeforeQuantity { get; set; }
+    public double AfterQuantity { get; set; }
     public string Type { get; set; } = string.Empty;
+    public string? ReferenceType { get; set; }
+    public string? ReasonType { get; set; }
     public DateTime Date { get; set; }
     public string? Notes { get; set; }
     public string UserName { get; set; } = string.Empty;
@@ -570,4 +642,59 @@ public class CurrentUserDto
     public List<string> Roles { get; set; } = [];
     public List<string> Permissions { get; set; } = [];
     public CompanyReadDto? Company { get; set; }
+}
+
+// ===== DTOs خاصة بالمقبوضات والمدفوعات (Finance Services) =====
+
+public class CreateReceiptDto
+{
+    public int PartnerId { get; set; } // CustomerId أو SupplierId حسَب نوع الخدمة
+    public decimal Amount { get; set; }
+    public DateTime Date { get; set; } = DateTime.UtcNow;
+    public PaymentMethod Method { get; set; }
+    public string? Notes { get; set; }
+    // إذا كانت true يتم عمل Auto-Allocate على أقدم الفواتير المفتوحة مباشرة
+    public bool AutoAllocate { get; set; } = false;
+}
+
+public class ManualAllocationDto
+{
+    public int InvoiceId { get; set; }
+    public decimal Amount { get; set; }
+}
+
+public class AllocateReceiptDto
+{
+    public int ReceiptId { get; set; }
+    public List<ManualAllocationDto> Allocations { get; set; } = [];
+}
+
+public class ReceiptReadDto
+{
+    public int Id { get; set; }
+    public int PartnerId { get; set; }
+    public string PartnerName { get; set; } = string.Empty;
+    public DateTime Date { get; set; }
+    public decimal Amount { get; set; }
+    public decimal UnallocatedAmount { get; set; }
+    public string Method { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public List<AllocationReadDto> Allocations { get; set; } = [];
+}
+
+public class AllocationReadDto
+{
+    public int InvoiceId { get; set; }
+    public decimal Amount { get; set; }
+}
+
+public class CustomerStatementDto
+{
+    public DateTime Date { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string DocumentType { get; set; } = string.Empty;
+    public int DocumentId { get; set; }
+    public decimal Debit { get; set; }   // عليه (مثلُا فاتورة مبيعات)
+    public decimal Credit { get; set; }  // له (مثلاً سند قبض أو مرتجع)
+    public decimal Balance { get; set; }
 }

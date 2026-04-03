@@ -157,7 +157,22 @@ public interface IInventoryService
         DateTime? to);
 
     Task CreateAdjustmentAsync(DTOs.CreateStockAdjustmentDto dto);
-    Task RegisterInitialStockAsync(int productId, double quantity);
+    Task RegisterInitialStockAsync(int productId, double quantity, int branchId);
+    
+    // تسجيل الكميات الخاصة بالفواتير (لا تتم إلا من خلال InvoiceService)
+    Task ProcessInvoiceStockAsync(int invoiceId, int productId, double quantity, int branchId, bool isSale, string notes);
+}
+
+/// <summary>
+/// خدمة المنتجات والأعمال المعقدة (Business Logic)
+/// </summary>
+public interface IProductService
+{
+    // التحقق من أن الباركود يمكن تحديثه وأنه غير مستخدم بحركات أخرى
+    Task ValidateCanUpdateBarcodeAsync(int productId, string newBarcode);
+
+    // تحديث تكلفة المنتج وتسجيل التغير التاريخي لتكلفة الشراء
+    Task UpdateCostPriceAsync(int productId, decimal newCost, string reason);
 }
 
 /// <summary>
@@ -264,4 +279,23 @@ public interface ISettlementService
         DateTime? to);
 
     Task<DTOs.SettlementReadDto> CreateAsync(DTOs.CreateSettlementDto dto);
+}
+
+/// <summary>
+/// خدمة الإدارة المالية والمقبوضات/المدفوعات (نظام الحساب المفتوح للعملاء والموردين)
+/// </summary>
+public interface IFinanceService
+{
+    // المقبوضات
+    Task<DTOs.ReceiptReadDto> CreateCustomerReceiptAsync(DTOs.CreateReceiptDto dto);
+    Task AllocateCustomerReceiptAsync(DTOs.AllocateReceiptDto dto);
+    
+    // المدفوعات للموردين
+    Task<DTOs.ReceiptReadDto> CreateSupplierPaymentAsync(DTOs.CreateReceiptDto dto);
+    Task AllocateSupplierPaymentAsync(DTOs.AllocateReceiptDto dto);
+
+    // كشوفات وشاشات العميل
+    Task<List<DTOs.CustomerStatementDto>> GetCustomerStatementAsync(int customerId, DateTime? from, DateTime? to);
+    Task<List<DTOs.InvoiceReadDto>> GetOpenCustomerInvoicesAsync(int customerId);
+    Task<List<DTOs.ReceiptReadDto>> GetUnallocatedCustomerReceiptsAsync(int customerId);
 }

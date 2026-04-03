@@ -40,17 +40,23 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     public DbSet<SupplierPhone> SupplierPhones => Set<SupplierPhone>();
 
     // ===== المنتجات =====
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    public DbSet<ProductCostHistory> ProductCostHistories => Set<ProductCostHistory>();
 
     // ===== الفواتير والمخزون =====
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
     public DbSet<StockTransaction> StockTransactions => Set<StockTransaction>();
 
-    // ===== المعاملات النقدية =====
+    // ===== المعاملات النقدية والديون =====
     public DbSet<CashTransaction> CashTransactions => Set<CashTransaction>();
     public DbSet<AccountSettlement> AccountSettlements => Set<AccountSettlement>();
+    public DbSet<CustomerReceipt> CustomerReceipts => Set<CustomerReceipt>();
+    public DbSet<CustomerReceiptAllocation> CustomerReceiptAllocations => Set<CustomerReceiptAllocation>();
+    public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
+    public DbSet<SupplierPaymentAllocation> SupplierPaymentAllocations => Set<SupplierPaymentAllocation>();
 
     // ===== الموظفون =====
     public DbSet<Employee> Employees => Set<Employee>();
@@ -135,7 +141,31 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<Product>()
             .HasIndex(p => new { p.CompanyId, p.Barcode })
             .IsUnique()
-            .HasFilter($"[{nameof(Product.Barcode)}] != ''"); // تجاهل الصفوف ذات الباركود الفارغ
+            .HasFilter($"[{nameof(Product.Barcode)}] != '' AND [IsDeleted] = 0"); 
+
+        // فهرس فريد لـ SKU داخل كل شركة
+        builder.Entity<Product>()
+            .HasIndex(p => new { p.CompanyId, p.SKU })
+            .IsUnique()
+            .HasFilter($"[{nameof(Product.SKU)}] IS NOT NULL AND [{nameof(Product.SKU)}] != '' AND [IsDeleted] = 0");
+
+        // فهارس إضافية لتحسين بحث المنتجات
+        builder.Entity<Product>().HasIndex(p => p.CategoryId);
+        builder.Entity<Product>().HasIndex(p => p.IsActive);
+
+        // إعداد علاقة المنتج بالتصنيف
+        builder.Entity<Product>()
+            .HasOne(p => p.Category)
+            .WithMany()
+            .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // إعداد هيكل الفئات الهرمية
+        builder.Entity<ProductCategory>()
+            .HasOne(pc => pc.ParentCategory)
+            .WithMany(pc => pc.SubCategories)
+            .HasForeignKey(pc => pc.ParentCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.Entity<Invoice>().HasIndex(i => i.CompanyId);
         builder.Entity<Invoice>().HasIndex(i => new { i.CompanyId, i.Date });
@@ -172,6 +202,10 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
             .Property(i => i.Discount).HasColumnType("decimal(18,4)");
         builder.Entity<Invoice>()
             .Property(i => i.Paid).HasColumnType("decimal(18,4)");
+        builder.Entity<Invoice>()
+            .Property(i => i.AllocatedAmount).HasColumnType("decimal(18,4)");
+        builder.Entity<Invoice>()
+            .Property(i => i.Tax).HasColumnType("decimal(18,4)");
 
         // عناصر الفاتورة
         builder.Entity<InvoiceItem>()
@@ -194,6 +228,15 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
             .Property(t => t.Value).HasColumnType("decimal(18,4)");
         builder.Entity<AccountSettlement>()
             .Property(s => s.Amount).HasColumnType("decimal(18,4)");
+
+        // إيصالات الدفع والتخصيص
+        builder.Entity<CustomerReceipt>().Property(x => x.Amount).HasColumnType("decimal(18,4)");
+        builder.Entity<CustomerReceipt>().Property(x => x.UnallocatedAmount).HasColumnType("decimal(18,4)");
+        builder.Entity<CustomerReceiptAllocation>().Property(x => x.Amount).HasColumnType("decimal(18,4)");
+        
+        builder.Entity<SupplierPayment>().Property(x => x.Amount).HasColumnType("decimal(18,4)");
+        builder.Entity<SupplierPayment>().Property(x => x.UnallocatedAmount).HasColumnType("decimal(18,4)");
+        builder.Entity<SupplierPaymentAllocation>().Property(x => x.Amount).HasColumnType("decimal(18,4)");
 
         // الرواتب والموظفون
         builder.Entity<Employee>()
@@ -272,6 +315,25 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
             .WithMany()
             .HasForeignKey(st => st.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // إعداد علاقات الإيصالات والتخصيص
+        builder.Entity<CustomerReceiptAllocation>()
+            .HasOne(a => a.Invoice)
+            .WithMany(i => i.CustomerAllocations)
+            .HasForeignKey(a => a.InvoiceId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<CustomerReceiptAllocation>()
+            .HasIndex(a => new { a.CustomerReceiptId, a.InvoiceId }).IsUnique();
+
+        builder.Entity<SupplierPaymentAllocation>()
+            .HasOne(a => a.Invoice)
+            .WithMany(i => i.SupplierAllocations)
+            .HasForeignKey(a => a.InvoiceId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<SupplierPaymentAllocation>()
+            .HasIndex(a => new { a.SupplierPaymentId, a.InvoiceId }).IsUnique();
 
         // ===== إعداد علاقات الشركة =====
         builder.Entity<CompanyPhoneNumber>()

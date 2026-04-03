@@ -2,14 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.DTOs;
-using StoreManagement.Shared.Entities.HR;
 using StoreManagement.Shared.Entities.Inventory;
-using StoreManagement.Shared.Entities.Sales;
-using StoreManagement.Shared.Entities.Finance;
-using StoreManagement.Shared.Entities.Identity;
-using StoreManagement.Shared.Entities.Partners;
-using StoreManagement.Shared.Entities.Configuration;
-using StoreManagement.Shared.Entities.Core;
 using StoreManagement.Shared.Enums;
 using StoreManagement.Shared.Interfaces;
 
@@ -55,7 +48,10 @@ public class InventoryService : IInventoryService
                 ProductId = st.ProductId,
                 ProductName = st.Product.Name,
                 Quantity = st.Quantity,
+                BeforeQuantity = st.BeforeQuantity,
+                AfterQuantity = st.AfterQuantity,
                 Type = st.MovementType.ToString(),
+                ReferenceType = st.ReferenceType.ToString(),
                 Date = st.Date,
                 Notes = st.Notes,
                 UserName = st.User.UserName ?? "Unknown",
@@ -74,14 +70,27 @@ public class InventoryService : IInventoryService
 
     public async Task CreateAdjustmentAsync(CreateStockAdjustmentDto dto)
     {
+        if (dto.BranchId <= 0)
+            throw new ArgumentException("معرف الفرع ضروري لأي حركة مخزون");
+
         var product = await _context.Products.FindAsync(dto.ProductId)
             ?? throw new KeyNotFoundException($"المنتج رقم {dto.ProductId} غير موجود");
+
+        var movementType = dto.Type == "In" ? StockMovementType.In : StockMovementType.Out;
+
+        // منع الهبوط الواضح للرصيد دون الصفر
+        if (movementType == StockMovementType.Out && product.StockQuantity - dto.Quantity < 0)
+            throw new InvalidOperationException("لا يمكن أن يكون المخزون سالباً - الكمية المطلوبة غير متوفرة");
 
         var transaction = new StockTransaction
         {
             ProductId = dto.ProductId,
+            BranchId = dto.BranchId,
             Quantity = dto.Quantity,
-            MovementType = dto.Type == "In" ? StockMovementType.In : StockMovementType.Out,
+            BeforeQuantity = product.StockQuantity,
+            MovementType = movementType,
+            ReferenceType = StockReferenceType.Adjustment,
+            ReasonType = (StockAdjustmentReason?)dto.ReasonType ?? StockAdjustmentReason.ManualCorrection,
             Date = DateTime.UtcNow,
             Notes = dto.Notes,
             CompanyId = (int)_currentUser.CompanyId!,
@@ -94,29 +103,86 @@ public class InventoryService : IInventoryService
         else
             product.StockQuantity -= dto.Quantity;
 
+        transaction.AfterQuantity = product.StockQuantity;
+
         _context.StockTransactions.Add(transaction);
         await _context.SaveChangesAsync();
     }
 
-    public async Task RegisterInitialStockAsync(int productId, double quantity)
+    public async Task RegisterInitialStockAsync(int productId, double quantity, int branchId)
     {
+        if (branchId <= 0)
+            throw new ArgumentException("معرف الفرع ضروري للرصيد الافتتاحي");
+
         var product = await _context.Products.FindAsync(productId)
             ?? throw new KeyNotFoundException($"المنتج رقم {productId} غير موجود");
 
         var transaction = new StockTransaction
         {
             ProductId = productId,
+            BranchId = branchId,
             Quantity = quantity,
+            BeforeQuantity = product.StockQuantity,
             MovementType = StockMovementType.In,
+            ReferenceType = StockReferenceType.InitialStock,
+            ReasonType = StockAdjustmentReason.ManualCorrection,
             Date = DateTime.UtcNow,
             Notes = "رصيد أول المدة (جرد افتتاحي)",
             CompanyId = (int)_currentUser.CompanyId!,
             UserId = (int)_currentUser.UserId!
         };
 
-        product.StockQuantity = quantity;
+        product.StockQuantity += quantity;
+        transaction.AfterQuantity = product.StockQuantity;
 
         _context.StockTransactions.Add(transaction);
         await _context.SaveChangesAsync();
+    }
+
+    public async Task ProcessInvoiceStockAsync(int invoiceId, int productId, double quantity, int branchId, bool isSale, string notes)
+    {
+        var product = await _context.Products.FindAsync(productId)
+            ?? throw new KeyNotFoundException($"المنتج رقم {productId} غير موجود");
+
+        var referenceType = StockReferenceType.Invoice;
+
+        // Idempotency Check: التأكد من أن هذه الفاتورة لم تقم بتسجيل حركة مسبقاً لنفس المنتج
+        var alreadyProcessed = await _context.StockTransactions.AnyAsync(st => 
+            st.ReferenceId == invoiceId && 
+            st.ReferenceType == referenceType && 
+            st.ProductId == productId);
+
+        if (alreadyProcessed)
+            return; // تجاهل الحركة، تم التسجيل مسبقاً للحماية من الـ Retries
+
+        if (isSale && product.StockQuantity - quantity < 0)
+            throw new InvalidOperationException($"الكمية المتاحة للمنتج '{product.Name}' غير كافية ({product.StockQuantity})");
+
+        var transaction = new StockTransaction
+        {
+            ProductId = productId,
+            BranchId = branchId,
+            Quantity = quantity,
+            BeforeQuantity = product.StockQuantity,
+            MovementType = isSale ? StockMovementType.Out : StockMovementType.In,
+            ReferenceType = referenceType,
+            ReferenceId = invoiceId,
+            ReasonType = null,
+            Date = DateTime.UtcNow,
+            Notes = notes,
+            CompanyId = (int)_currentUser.CompanyId!,
+            UserId = (int)_currentUser.UserId!
+        };
+
+        if (isSale)
+            product.StockQuantity -= quantity;
+        else
+            product.StockQuantity += quantity;
+
+        transaction.AfterQuantity = product.StockQuantity;
+
+        _context.StockTransactions.Add(transaction);
+        
+        // لن نقوم بتشغيل SaveChangesAsync هنا لنتركها لـ Unit of Work في الـ InvoiceService
     }
 }

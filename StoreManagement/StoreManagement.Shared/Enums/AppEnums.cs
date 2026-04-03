@@ -42,7 +42,33 @@ public enum TransactionSource
 public enum StockMovementType
 {
     In = 1,   // توريد
-    Out = 2   // صرف
+    Out = 2,  // صرف
+    TransferIn = 3,  // تحويل وارد (فرع لآخر)
+    TransferOut = 4  // تحويل صادر (فرع لآخر)
+}
+
+/// <summary>
+/// نوع المستند المرجعي المرتبط بحركة المخزون
+/// </summary>
+public enum StockReferenceType
+{
+    Invoice = 1,      // فاتورة (مبيعات أو مشتريات)
+    Adjustment = 2,   // تسوية (يدوية أو جرد)
+    Return = 3,       // مرتجع
+    Transfer = 4,     // تحويل بين الفروع
+    InitialStock = 5  // رصيد افتتاحي
+}
+
+/// <summary>
+/// أسباب التسوية اليدوية للمخزون
+/// </summary>
+public enum StockAdjustmentReason
+{
+    Damaged = 1,          // تالف
+    Expired = 2,          // منتهي الصلاحية
+    Lost = 3,             // مفقود / عجز جرد
+    Found = 4,            // فائض جرد
+    ManualCorrection = 5  // تصحيح خطأ إدخال
 }
 
 /// <summary>
@@ -50,8 +76,41 @@ public enum StockMovementType
 /// </summary>
 public enum InvoiceType
 {
-    Sale = 1,      // فاتورة مبيعات
-    Purchase = 2   // فاتورة مشتريات
+    Sale = 1,            // فاتورة مبيعات
+    Purchase = 2,        // فاتورة مشتريات
+    SalesReturn = 3,     // مرتجع مبيعات
+    PurchaseReturn = 4   // مرتجع مشتريات
+}
+
+/// <summary>
+/// حالة مستند الفاتورة (للسيطرة على المخازن ومنع الحذف)
+/// </summary>
+public enum InvoiceStatus
+{
+    Draft = 1,       // مسودة (يمكن التعديل والحذف، لا تؤثر على المخزن)
+    Confirmed = 2,   // مؤكدة (تُنفذ حركات المخزن، لا يمكن حذفها مباشرة)
+    Cancelled = 3    // ملغية (عن طريق المرتجع فقط)
+}
+
+/// <summary>
+/// حالة سداد الفاتورة (استناداً إلى الدفعات والتخصيص)
+/// </summary>
+public enum PaymentStatus
+{
+    Unpaid = 1,          // غير مسددة
+    PartiallyPaid = 2,   // مسددة جزئياً
+    Paid = 3             // مسددة بالكامل
+}
+
+/// <summary>
+/// طريقة الدفع
+/// </summary>
+public enum PaymentMethod
+{
+    Cash = 1,           // نقداً
+    BankTransfer = 2,   // تحويل بنكي
+    Cheque = 3,         // شيك
+    Card = 4            // بطاقة ائتمانية (فيزا/ماستركارد)
 }
 
 /// <summary>

@@ -24,17 +24,26 @@ public class ProductsController : ControllerBase
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<ProductsController> _logger;
     private readonly IBarcodeService _barcodeService;
+    private readonly IProductService _productService;
+    private readonly IInventoryService _inventoryService;
+    private readonly IFileStorageService _fileStorageService;
 
     public ProductsController(
         StoreDbContext context,
         ICurrentUserService currentUser,
         ILogger<ProductsController> logger,
-        IBarcodeService barcodeService)
+        IBarcodeService barcodeService,
+        IProductService productService,
+        IInventoryService inventoryService,
+        IFileStorageService fileStorageService)
     {
         _context = context;
         _currentUser = currentUser;
         _logger = logger;
         _barcodeService = barcodeService;
+        _productService = productService;
+        _inventoryService = inventoryService;
+        _fileStorageService = fileStorageService;
     }
 
     /// <summary>
@@ -43,19 +52,33 @@ public class ProductsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<ProductReadDto>>>> GetAll(
         [FromQuery] PaginationQueryDto query,
-        [FromQuery] bool? isLowStock)
+        [FromQuery] bool? isLowStock,
+        [FromQuery] int? categoryId,
+        [FromQuery] string? brand,
+        [FromQuery] bool? isActive)
     {
         var productsQuery = _context.Products
             .Include(p => p.ProductImages)
+            .Include(p => p.Category)
             .AsQueryable();
 
         if (isLowStock == true)
-            productsQuery = productsQuery.Where(p => p.StockQuantity <= 5);
+            productsQuery = productsQuery.Where(p => p.StockQuantity <= p.MinimumStock);
+            
+        if (categoryId.HasValue)
+            productsQuery = productsQuery.Where(p => p.CategoryId == categoryId.Value);
+            
+        if (!string.IsNullOrWhiteSpace(brand))
+            productsQuery = productsQuery.Where(p => p.Brand == brand);
+            
+        if (isActive.HasValue)
+            productsQuery = productsQuery.Where(p => p.IsActive == isActive.Value);
 
         if (!string.IsNullOrWhiteSpace(query.Search))
             productsQuery = productsQuery.Where(p =>
                 p.Name.Contains(query.Search) ||
-                p.Barcode.Contains(query.Search)); // دعم البحث بالاسم أو الباركود
+                p.Barcode.Contains(query.Search) ||
+                (p.SKU != null && p.SKU.Contains(query.Search))); // دعم البحث بالاسم أو الباركود أو SKU
 
         var totalCount = await productsQuery.CountAsync();
 
@@ -70,7 +93,17 @@ public class ProductsController : ControllerBase
                 Price = p.Price,
                 CostPrice = p.CostPrice,
                 StockQuantity = p.StockQuantity,
+                MinimumStock = p.MinimumStock,
+                ReorderLevel = p.ReorderLevel,
                 Unit = p.Unit,
+                SKU = p.SKU,
+                Description = p.Description,
+                Brand = p.Brand,
+                CategoryId = p.CategoryId,
+                CategoryName = p.Category != null ? p.Category.Name : null,
+                IsActive = p.IsActive,
+                IsSellable = p.IsSellable,
+                IsPurchasable = p.IsPurchasable,
                 ThumbnailUrl = p.ProductImages.Where(i => i.IsThumbnail).Select(i => i.ImageUrl).FirstOrDefault(),
                 Barcode = p.Barcode,
                 BarcodeType = p.BarcodeType.ToString(),
@@ -97,6 +130,7 @@ public class ProductsController : ControllerBase
     {
         var product = await _context.Products
             .Include(p => p.ProductImages)
+            .Include(p => p.Category)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (product is null)
@@ -116,6 +150,7 @@ public class ProductsController : ControllerBase
         
         var product = await _context.Products
             .Include(p => p.ProductImages)
+            .Include(p => p.Category)
             .FirstOrDefaultAsync(p => p.Barcode == barcode && p.CompanyId == companyId);
 
         if (product is null)
@@ -139,6 +174,13 @@ public class ProductsController : ControllerBase
 
         if (nameExists)
             return BadRequest(ApiResponse<ProductReadDto>.Failure("اسم المنتج مسجل مسبقاً بنفس الشركة"));
+
+        if (!string.IsNullOrWhiteSpace(dto.SKU))
+        {
+            var skuExists = await _context.Products.AnyAsync(p => p.SKU == dto.SKU && p.CompanyId == companyId);
+            if (skuExists)
+                return BadRequest(ApiResponse<ProductReadDto>.Failure("رمز SKU مستخدم مسبقاً لمنتج آخر"));
+        }
 
         // تحديد الباركود والصيغة
         string barcode;
@@ -173,6 +215,14 @@ public class ProductsController : ControllerBase
             Price = dto.Price,
             CostPrice = dto.CostPrice,
             Unit = dto.Unit,
+            SKU = dto.SKU,
+            Description = dto.Description,
+            Brand = dto.Brand,
+            CategoryId = dto.CategoryId,
+            MinimumStock = dto.MinimumStock,
+            ReorderLevel = dto.ReorderLevel,
+            IsSellable = dto.IsSellable,
+            IsPurchasable = dto.IsPurchasable,
             Barcode = barcode,
             BarcodeType = barcodeType,
             BarcodeFormat = barcodeFormat,
@@ -225,28 +275,10 @@ public class ProductsController : ControllerBase
                 return BadRequest(ApiResponse<object>.Failure("اسم المنتج مسجل مسبقاً بمنتج آخر"));
         }
 
-        // ===== منطق تحديث الباركود المقيَّد =====
+        // ===== الشيكات على الأكواد عبر ProductService =====
         if (!string.IsNullOrWhiteSpace(dto.Barcode) && dto.Barcode != product.Barcode)
         {
-            // القاعدة 1: يُسمح فقط بالتحويل من Generated إلى Factory
-            if (product.BarcodeType == BarcodeType.Factory)
-                return BadRequest(ApiResponse<object>.Failure(
-                    "لا يمكن تغيير باركود المصنع. يُسمح فقط بالتحويل من باركود تلقائي إلى مصنعي."));
-
-            // القاعدة 2: منع التعديل إذا كان المنتج مستخدماً في فواتير
-            var usedInInvoices = await _context.InvoiceItems
-                .AnyAsync(ii => ii.ProductId == id);
-
-            if (usedInInvoices)
-                return BadRequest(ApiResponse<object>.Failure(
-                    "لا يمكن تغيير الباركود لأن هذا المنتج مستخدم في فواتير سابقة."));
-
-            // القاعدة 3: التحقق من عدم التكرار
-            var duplicateExists = await _context.Products
-                .AnyAsync(p => p.Barcode == dto.Barcode && p.Id != id);
-
-            if (duplicateExists)
-                return BadRequest(ApiResponse<object>.Failure("هذا الباركود مستخدم بمنتج آخر."));
+            await _productService.ValidateCanUpdateBarcodeAsync(id, dto.Barcode);
 
             var oldBarcode = product.Barcode;
             product.Barcode = dto.Barcode;
@@ -258,10 +290,26 @@ public class ProductsController : ControllerBase
                 id, oldBarcode, dto.Barcode, _currentUser.UserId);
         }
 
+        if (!string.IsNullOrWhiteSpace(dto.SKU) && dto.SKU != product.SKU)
+        {
+            var skuExists = await _context.Products.AnyAsync(p => p.SKU == dto.SKU && p.CompanyId == companyId && p.Id != id);
+            if (skuExists)
+                return BadRequest(ApiResponse<object>.Failure("رمز SKU مستخدم مسبقاً لمنتج آخر"));
+        }
+
         product.Name = dto.Name;
         product.Price = dto.Price;
         product.CostPrice = dto.CostPrice;
         product.Unit = dto.Unit;
+        product.SKU = dto.SKU;
+        product.Description = dto.Description;
+        product.Brand = dto.Brand;
+        product.CategoryId = dto.CategoryId;
+        product.MinimumStock = dto.MinimumStock;
+        product.ReorderLevel = dto.ReorderLevel;
+        product.IsActive = dto.IsActive;
+        product.IsSellable = dto.IsSellable;
+        product.IsPurchasable = dto.IsPurchasable;
 
         await _context.SaveChangesAsync();
 
@@ -280,7 +328,12 @@ public class ProductsController : ControllerBase
         if (product is null)
             return NotFound(ApiResponse<object>.Failure("المنتج غير موجود"));
 
-        _context.Products.Remove(product);
+        var usedInInvoices = await _context.InvoiceItems.AnyAsync(i => i.ProductId == id);
+        
+        if (usedInInvoices)
+            return BadRequest(ApiResponse<object>.Failure("لا يمكن حذف المنتج لوجود فواتير مسجلة عليه. تم إيقاف تفعيله."));
+
+        product.IsDeleted = true;
         await _context.SaveChangesAsync();
 
         return Ok(ApiResponse<object>.SuccessResult("تم حذف المنتج بنجاح"));
@@ -340,13 +393,23 @@ public class ProductsController : ControllerBase
 
         using var ms = new MemoryStream();
         await file.CopyToAsync(ms);
-        var base64 = Convert.ToBase64String(ms.ToArray());
-        var dataUrl = $"data:{file.ContentType};base64,{base64}";
+        ms.Position = 0;
+        
+        string fileUrl;
+        try
+        {
+            fileUrl = await _fileStorageService.SaveFileAsync(ms, file.FileName, "products", _currentUser.CompanyId!.Value);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "فشل رفع الصورة للمنتج {ProductId}", id);
+            return BadRequest(ApiResponse<object>.Failure("حدث خطأ أثناء حفظ الصورة"));
+        }
 
         var productImage = new ProductImage
         {
             ProductId = id,
-            ImageUrl = dataUrl,
+            ImageUrl = fileUrl,
             IsThumbnail = isThumbnail
         };
 
@@ -361,7 +424,7 @@ public class ProductsController : ControllerBase
         _context.ProductImages.Add(productImage);
         await _context.SaveChangesAsync();
 
-        return Ok(ApiResponse<object>.SuccessResult(new { id = productImage.Id, url = dataUrl }, "تم رفع الصورة بنجاح"));
+        return Ok(ApiResponse<object>.SuccessResult(new { id = productImage.Id, url = fileUrl }, "تم رفع الصورة بنجاح"));
     }
 
     // ===== Helper Methods =====
@@ -373,12 +436,114 @@ public class ProductsController : ControllerBase
         Price = product.Price,
         CostPrice = product.CostPrice,
         StockQuantity = product.StockQuantity,
+        MinimumStock = product.MinimumStock,
+        ReorderLevel = product.ReorderLevel,
         Unit = product.Unit,
-        ThumbnailUrl = product.ProductImages.FirstOrDefault(i => i.IsThumbnail)?.ImageUrl,
+        SKU = product.SKU,
+        Description = product.Description,
+        Brand = product.Brand,
+        CategoryId = product.CategoryId,
+        CategoryName = product.Category?.Name,
+        IsActive = product.IsActive,
+        IsSellable = product.IsSellable,
+        IsPurchasable = product.IsPurchasable,
+        ThumbnailUrl = product.ProductImages?.FirstOrDefault(i => i.IsThumbnail)?.ImageUrl,
         Barcode = product.Barcode,
         BarcodeType = product.BarcodeType.ToString(),
         BarcodeFormat = product.BarcodeFormat.ToString()
     };
+
+    // ===== نقاط النهاية الإضافية (Extra Endpoints) =====
+
+    [HttpGet("{id:int}/summary")]
+    public async Task<ActionResult<ApiResponse<ProductSummaryDto>>> GetSummary(int id)
+    {
+        var companyId = _currentUser.CompanyId.Value;
+        
+        var product = await _context.Products
+            .Include(p => p.Category)
+            .FirstOrDefaultAsync(p => p.Id == id && p.CompanyId == companyId);
+
+        if (product == null)
+            return NotFound(ApiResponse<ProductSummaryDto>.Failure("المنتج غير موجود"));
+
+        var lastTransaction = await _context.StockTransactions
+            .Where(st => st.ProductId == id && st.CompanyId == companyId)
+            .OrderByDescending(st => st.Date)
+            .FirstOrDefaultAsync();
+
+        var summary = new ProductSummaryDto
+        {
+            ProductId = product.Id,
+            Name = product.Name,
+            CurrentStock = product.StockQuantity,
+            CurrentCost = product.CostPrice,
+            CurrentPrice = product.Price,
+            LastMovementDate = lastTransaction?.Date,
+            CategoryName = product.Category?.Name,
+            Brand = product.Brand
+        };
+
+        return Ok(ApiResponse<ProductSummaryDto>.SuccessResult(summary));
+    }
+
+    [HttpPatch("{id:int}/activate")]
+    [Authorize(Roles = "Admin,Warehouse")]
+    public async Task<ActionResult<ApiResponse<object>>> Activate(int id)
+    {
+        var product = await _context.Products.FindAsync(id);
+        if (product is null) return NotFound(ApiResponse<object>.Failure("المنتج غير موجود"));
+        product.IsActive = true;
+        await _context.SaveChangesAsync();
+        return Ok(ApiResponse<object>.SuccessResult("تم تفعيل المنتج بنجاح"));
+    }
+
+    [HttpPatch("{id:int}/deactivate")]
+    [Authorize(Roles = "Admin,Warehouse")]
+    public async Task<ActionResult<ApiResponse<object>>> Deactivate(int id)
+    {
+        var product = await _context.Products.FindAsync(id);
+        if (product is null) return NotFound(ApiResponse<object>.Failure("المنتج غير موجود"));
+        product.IsActive = false;
+        await _context.SaveChangesAsync();
+        return Ok(ApiResponse<object>.SuccessResult("تم إيقاف تفعيل المنتج بنجاح"));
+    }
+
+    [HttpGet("{id:int}/stock-history")]
+    public async Task<ActionResult<ApiResponse<PagedResult<StockTransactionReadDto>>>> GetStockHistory(
+        int id, [FromQuery] PaginationQueryDto query, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        var result = await _inventoryService.GetHistoryAsync(query, id, from, to);
+        return Ok(ApiResponse<PagedResult<StockTransactionReadDto>>.SuccessResult(result));
+    }
+    
+    [HttpGet("low-stock")]
+    public async Task<ActionResult<ApiResponse<List<ProductReadDto>>>> GetLowStock()
+    {
+        var companyId = _currentUser.CompanyId.Value;
+        var products = await _context.Products
+            .Include(p => p.Category)
+            .Include(p => p.ProductImages)
+            .Where(p => p.CompanyId == companyId && p.IsActive && p.StockQuantity <= p.MinimumStock)
+            .Select(p => MapToReadDto(p))
+            .ToListAsync();
+            
+        return Ok(ApiResponse<List<ProductReadDto>>.SuccessResult(products));
+    }
+    
+    [HttpGet("reorder-needed")]
+    public async Task<ActionResult<ApiResponse<List<ProductReadDto>>>> GetReorderNeeded()
+    {
+        var companyId = _currentUser.CompanyId.Value;
+        var products = await _context.Products
+            .Include(p => p.Category)
+            .Include(p => p.ProductImages)
+            .Where(p => p.CompanyId == companyId && p.IsActive && p.StockQuantity <= p.ReorderLevel)
+            .Select(p => MapToReadDto(p))
+            .ToListAsync();
+            
+        return Ok(ApiResponse<List<ProductReadDto>>.SuccessResult(products));
+    }
 
     /// <summary>
     /// يولّد باركود EAN-13 فريداً مع إعادة المحاولة عند التكرار (Concurrency Protection)

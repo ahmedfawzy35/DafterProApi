@@ -39,9 +39,9 @@ public class InventoryController : ControllerBase
     }
 
     [HttpPost("initial")]
-    public async Task<ActionResult<ApiResponse<string>>> RegisterInitial([FromQuery] int productId, [FromQuery] double quantity)
+    public async Task<ActionResult<ApiResponse<string>>> RegisterInitial([FromQuery] int productId, [FromQuery] double quantity, [FromQuery] int branchId)
     {
-        await _inventoryService.RegisterInitialStockAsync(productId, quantity);
+        await _inventoryService.RegisterInitialStockAsync(productId, quantity, branchId);
         return Ok(ApiResponse<string>.SuccessResult("تم تسجيل الرصيد الافتتاحي بنجاح"));
     }
 }

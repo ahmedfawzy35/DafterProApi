@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using StoreManagement.Shared.Enums;
 
 namespace StoreManagement.Shared.Entities.Inventory;
@@ -19,8 +21,41 @@ public class Product : BaseEntity
     // الكمية المتاحة في المخزون
     public double StockQuantity { get; set; } = 0;
 
+    // أدنى مستوى للمخزون (حد إشعار تدني المخزون)
+    public double MinimumStock { get; set; } = 0;
+
+    // حد إعادة الطلب (Reorder Level) لتنبيه المشتريات
+    public double ReorderLevel { get; set; } = 0;
+
     // وحدة القياس (قطعة، كجم، متر، إلخ)
     public string Unit { get; set; } = "قطعة";
+
+    // ===== البيانات التجارية الإضافية =====
+
+    // رمز التخزين التعريفي الداخلي (Stock Keeping Unit)
+    public string? SKU { get; set; }
+
+    // وصف المنتج
+    public string? Description { get; set; }
+
+    // العلامة التجارية
+    public string? Brand { get; set; }
+
+    // حالة المنتج (مفعل أم معطل)
+    public bool IsActive { get; set; } = true;
+
+    // هل المنتج قابل للبيع؟
+    public bool IsSellable { get; set; } = true;
+
+    // هل المنتج قابل للشراء؟
+    public bool IsPurchasable { get; set; } = true;
+
+    // التصنيف التابع له المنتج
+    public int? CategoryId { get; set; }
+
+    // علاقة بالتصنيف
+    [ForeignKey(nameof(CategoryId))]
+    public virtual ProductCategory? Category { get; set; }
 
     // ===== الباركود =====
 
@@ -31,17 +66,20 @@ public class Product : BaseEntity
     public string Barcode { get; set; } = string.Empty;
 
     /// <summary>
-    /// مصدر الباركود: Generated (داخلي) أو Factory (مصنعي)
+    /// هل الباركود الحالي مُولَّد تلقائياً بواسطة النظام؟
+    /// (true = يمكن استبداله بباركود حقيقي عند توفره، false = باركود مصنعي مقفل لا يمكن تعديله)
     /// </summary>
+    public bool IsBarcodeGenerated { get; set; } = false;
+
+    // نوع الباركود: مُولَّد تلقائياً أو من المصنع
     public BarcodeType BarcodeType { get; set; } = BarcodeType.Generated;
 
-    /// <summary>
-    /// صيغة الباركود: EAN13 أو CODE128
-    /// </summary>
+    // صيغة الباركود: EAN13 أو CODE128
     public BarcodeFormat BarcodeFormat { get; set; } = BarcodeFormat.EAN13;
 
-    // قائمة صور المنتج
-    public ICollection<ProductImage> ProductImages { get; set; } = [];
+
+    // Navigation Properties
+    public virtual ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
+    public virtual ICollection<StockTransaction> StockTransactions { get; set; } = new List<StockTransaction>();
+    public virtual ICollection<ProductCostHistory> CostHistories { get; set; } = new List<ProductCostHistory>();
 }
-
-

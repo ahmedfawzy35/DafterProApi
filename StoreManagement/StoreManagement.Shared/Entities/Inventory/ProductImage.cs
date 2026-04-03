@@ -16,6 +16,9 @@ public class ProductImage
     // هل هي الصورة المصغرة الرئيسية
     public bool IsThumbnail { get; set; } = false;
 
+    // ترتيب عرض الصورة
+    public int SortOrder { get; set; } = 0;
+
     // علاقة بالمنتج
     public Product Product { get; set; } = null!;
 }

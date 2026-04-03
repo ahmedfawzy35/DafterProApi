@@ -1,6 +1,7 @@
 using StoreManagement.Shared.Enums;
 
 using StoreManagement.Shared.Entities.Core;
+using StoreManagement.Shared.Entities.Finance;
 
 namespace StoreManagement.Shared.Entities.Sales;
 
@@ -14,6 +15,12 @@ public class Invoice : BaseEntity, IBranchEntity
 
     // نوع الفاتورة (مبيعات / مشتريات)
     public InvoiceType Type { get; set; }
+
+    // حالة الفاتورة (مسودة / مؤكدة / ملغية)
+    public InvoiceStatus Status { get; set; } = InvoiceStatus.Draft;
+
+    // حالة السداد بالاعتماد على المدفوعات المخصصة
+    public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
 
     // معرف العميل (للمبيعات)
     public int? CustomerId { get; set; }
@@ -36,8 +43,20 @@ public class Invoice : BaseEntity, IBranchEntity
     // الخصم
     public decimal Discount { get; set; } = 0;
 
-    // المبلغ المدفوع
+    // الضريبة (الضريبة على القيمة المضافة وغيرها)
+    public decimal Tax { get; set; } = 0;
+
+    // الصافي الإجمالي للفاتورة
+    public decimal NetTotal => TotalValue - Discount + Tax;
+
+    // المبلغ المدفوع (متروك مؤقتاً للتوافقية المكتسبة)
     public decimal Paid { get; set; } = 0;
+
+    // مقدار ما تم سداده وتخصيصه للفاتورة عبر السندات
+    public decimal AllocatedAmount { get; set; } = 0;
+
+    // المتبقي المستحق على الفاتورة
+    public decimal RemainingAmount => NetTotal - AllocatedAmount;
 
     // هل تدفع على أقساط
     public bool IsInstallment { get; set; } = false;
@@ -47,6 +66,12 @@ public class Invoice : BaseEntity, IBranchEntity
 
     // عناصر الفاتورة التفصيلية
     public ICollection<InvoiceItem> Items { get; set; } = [];
+
+    // الإيصالات المخصصة من طرف العميل
+    public ICollection<CustomerReceiptAllocation> CustomerAllocations { get; set; } = [];
+
+    // الإيصالات المخصصة من طرف المورد
+    public ICollection<SupplierPaymentAllocation> SupplierAllocations { get; set; } = [];
 }
 
 /// <summary>
