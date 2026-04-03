@@ -75,6 +75,7 @@ public class SettlementService : ISettlementService
                 ? customers.GetValueOrDefault(s.RelatedEntityId)
                 : suppliers.GetValueOrDefault(s.RelatedEntityId),
             Type = s.Type.ToString(),
+            Reason = s.Reason.ToString(),
             Amount = s.Amount,
             Date = s.Date,
             Notes = s.Notes,
@@ -96,6 +97,15 @@ public class SettlementService : ISettlementService
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
+            if (dto.Amount <= 0)
+                throw new ArgumentException("يجب أن يكون مبلغ التسوية أكبر من صفر.");
+                
+            if (dto.Reason <= 0 || !Enum.IsDefined(typeof(SettlementReason), dto.Reason))
+                throw new ArgumentException("يجب تحديد سبب صحيح للتسوية.");
+                
+            if (string.IsNullOrWhiteSpace(dto.Notes))
+                throw new ArgumentException("من الإجباري إدخال الملاحظات (Notes) لتبرير التسوية.");
+
             // التحقق من وجود الكيان المرتبط
             string? partnerName = null;
             if ((SettlementSource)dto.SourceType == SettlementSource.Customer)
@@ -118,6 +128,7 @@ public class SettlementService : ISettlementService
                 SourceType = (SettlementSource)dto.SourceType,
                 RelatedEntityId = dto.RelatedEntityId,
                 Type = (SettlementType)dto.Type,
+                Reason = (SettlementReason)dto.Reason,
                 Amount = dto.Amount,
                 Date = dto.Date,
                 Notes = dto.Notes,
@@ -139,6 +150,7 @@ public class SettlementService : ISettlementService
                 SourceType = settlement.SourceType.ToString(),
                 RelatedEntityName = partnerName,
                 Type = settlement.Type.ToString(),
+                Reason = settlement.Reason.ToString(),
                 Amount = settlement.Amount,
                 Date = settlement.Date,
                 Notes = settlement.Notes,

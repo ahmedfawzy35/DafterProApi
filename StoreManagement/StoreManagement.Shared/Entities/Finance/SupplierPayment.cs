@@ -28,6 +28,9 @@ public class SupplierPayment : BaseEntity, IBranchEntity
     // طريقة الدفع
     public PaymentMethod Method { get; set; } = PaymentMethod.Cash;
 
+    // نوع المعاملة
+    public TransactionKind Kind { get; set; } = TransactionKind.Normal;
+
     // الملاحظات
     public string? Notes { get; set; }
 

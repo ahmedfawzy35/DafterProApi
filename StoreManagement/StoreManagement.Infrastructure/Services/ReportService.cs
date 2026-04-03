@@ -201,7 +201,7 @@ public class ReportService : IReportService
             From = fromDate,
             To = toDate,
             InvoiceCount = sales.Count,
-            TotalRevenue = sales.Sum(i => i.TotalValue),
+            TotalRevenue = sales.Sum(i => i.NetTotal), // تم استبدال TotalValue بـ NetTotal لمعالجة الخصومات والضرائب
             TotalDiscount = sales.Sum(i => i.Discount),
             TotalTax = sales.Sum(i => i.Tax),
             NetRevenue = sales.Sum(i => i.NetTotal)

@@ -424,6 +424,7 @@ public class SupplierStatementDto
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
     public string DocumentType { get; set; } = string.Empty;
+    public string TransactionType { get; set; } = string.Empty;
     public int DocumentId { get; set; }
     public decimal Debit { get; set; }   // علينا (فاتورة مشتريات = نحن مدينون)
     public decimal Credit { get; set; }  // لنا (سداد أو مرتجع)
@@ -991,6 +992,7 @@ public class CreateSettlementDto
     public int SourceType { get; set; }     // (1: عميل، 2: مورد)
     public int RelatedEntityId { get; set; }
     public int Type { get; set; }           // (1: إضافة، 2: خصم)
+    public int Reason { get; set; }         // سبب التسوية (من SettlementReason)
     public decimal Amount { get; set; }
     public string? Notes { get; set; }
     public DateTime Date { get; set; } = DateTime.UtcNow;
@@ -1002,6 +1004,7 @@ public class SettlementReadDto
     public string SourceType { get; set; } = string.Empty;
     public string? RelatedEntityName { get; set; }
     public string Type { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public DateTime Date { get; set; }
     public string? Notes { get; set; }
@@ -1109,6 +1112,7 @@ public class ReceiptReadDto
     public decimal Amount { get; set; }
     public decimal UnallocatedAmount { get; set; }
     public string Method { get; set; } = string.Empty;
+    public string Kind { get; set; } = string.Empty;
     public string? Notes { get; set; }
     public List<AllocationReadDto> Allocations { get; set; } = [];
 }
@@ -1124,8 +1128,67 @@ public class CustomerStatementDto
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
     public string DocumentType { get; set; } = string.Empty;
+    public string TransactionType { get; set; } = string.Empty;
     public int DocumentId { get; set; }
     public decimal Debit { get; set; }   // عليه (مثلُا فاتورة مبيعات)
     public decimal Credit { get; set; }  // له (مثلاً سند قبض أو مرتجع)
     public decimal Balance { get; set; }
+}
+
+// ===== DTOs خاصة بالتنبيهات (Alerts) =====
+public class LowStockAlertDto
+{
+    public int ProductId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? SKU { get; set; }
+    public double StockQuantity { get; set; }
+    public double MinimumStock { get; set; }
+    public string Unit { get; set; } = string.Empty;
+    public string? CategoryName { get; set; }
+}
+
+public class OverdueCustomerAlertDto
+{
+    public int CustomerId { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
+    public decimal TotalOverdue { get; set; }
+    public int OldestInvoiceDays { get; set; }
+    public int InvoiceCount { get; set; }
+}
+
+public class HighDebtCustomerAlertDto
+{
+    public int CustomerId { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
+    public decimal NetBalance { get; set; }
+    public decimal CreditLimit { get; set; }
+    public decimal ExcessAmount { get; set; }
+}
+
+// ===== DTOs خاصة بالورديات (Shifts) =====
+public class OpenShiftDto
+{
+    public decimal OpeningBalance { get; set; }
+}
+
+public class CloseShiftDto
+{
+    public decimal ActualClosingBalance { get; set; }
+}
+
+public class ShiftReadDto
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public int BranchId { get; set; }
+    public decimal OpeningBalance { get; set; }
+    public decimal TotalCashIn { get; set; }
+    public decimal TotalCashOut { get; set; }
+    public decimal? ClosingBalance { get; set; }
+    public decimal? ActualClosingBalance { get; set; }
+    public decimal? Difference { get; set; }
+    public DateTime OpenedAt { get; set; }
+    public DateTime? ClosedAt { get; set; }
+    public string Status { get; set; } = string.Empty;
 }

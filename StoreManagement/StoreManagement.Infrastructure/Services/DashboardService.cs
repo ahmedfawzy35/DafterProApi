@@ -128,7 +128,7 @@ public class DashboardService : IDashboardService
         return await _context.InvoiceItems
             .Include(ii => ii.Invoice)
             .Include(ii => ii.Product)
-            .Where(ii => ii.Invoice.Type == InvoiceType.Sale)
+            .Where(ii => ii.Invoice.Type == InvoiceType.Sale && ii.Invoice.Status == InvoiceStatus.Confirmed)
             .GroupBy(ii => new { ii.ProductId, ii.Product.Name })
             .Select(g => new TopProductDto
             {

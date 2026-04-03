@@ -18,10 +18,12 @@ namespace StoreManagement.Server.Controllers.V1;
 public class InvoicesController : ControllerBase
 {
     private readonly IInvoiceService _invoiceService;
+    private readonly IAuditLogService _auditLogService;
 
-    public InvoicesController(IInvoiceService invoiceService)
+    public InvoicesController(IInvoiceService invoiceService, IAuditLogService auditLogService)
     {
         _invoiceService = invoiceService;
+        _auditLogService = auditLogService;
     }
 
     [HttpGet]
@@ -65,5 +67,17 @@ public class InvoicesController : ControllerBase
     {
         await _invoiceService.CancelAsync(id);
         return Ok(ApiResponse<object>.SuccessResult(null, "تم إلغاء الفاتورة بنجاح وتم فك التخصيص واسترجاع الكميات."));
+    }
+
+    /// <summary>
+    /// GET /api/v1/invoices/{id}/history
+    /// جلب سجل التاريخ (Audit Logs) للفاتورة
+    /// </summary>
+    [HttpGet("{id:int}/history")]
+    public async Task<ActionResult<ApiResponse<PagedResult<AuditLogReadDto>>>> GetHistory(
+        int id, [FromQuery] PaginationQueryDto query)
+    {
+        var result = await _auditLogService.GetAllAsync(query, entityName: "Invoice", entityId: id.ToString());
+        return Ok(ApiResponse<PagedResult<AuditLogReadDto>>.SuccessResult(result));
     }
 }

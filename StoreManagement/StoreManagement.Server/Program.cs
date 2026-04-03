@@ -192,6 +192,8 @@ builder.Services.AddScoped<ISupplierService, SupplierService>();  // خدمة ا
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<ICashTransactionService, CashTransactionService>();
 builder.Services.AddScoped<IFinanceService, FinanceService>();
+builder.Services.AddScoped<IShiftService, ShiftService>();
+builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IBranchService, BranchService>();

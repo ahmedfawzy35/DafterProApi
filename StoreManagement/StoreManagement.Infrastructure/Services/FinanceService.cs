@@ -13,11 +13,13 @@ public class FinanceService : IFinanceService
 {
     private readonly StoreDbContext _context;
     private readonly ICurrentUserService _currentUser;
+    private readonly IShiftService _shiftService;
 
-    public FinanceService(StoreDbContext context, ICurrentUserService currentUser)
+    public FinanceService(StoreDbContext context, ICurrentUserService currentUser, IShiftService shiftService)
     {
         _context = context;
         _currentUser = currentUser;
+        _shiftService = shiftService;
     }
 
     private void ValidateBranch(int branchId)
@@ -52,6 +54,8 @@ public class FinanceService : IFinanceService
             
             _context.CustomerReceipts.Add(receipt);
 
+            var shiftId = await _shiftService.GetCurrentShiftIdAsync();
+
             // Record in CashTransaction
             var cashTran = new CashTransaction
             {
@@ -61,6 +65,7 @@ public class FinanceService : IFinanceService
                 Type = TransactionType.In,
                 SourceType = TransactionSource.Customer,
                 RelatedEntityId = dto.PartnerId,
+                ShiftId = shiftId,
                 Notes = $"سند قبض بعميل رقم {dto.PartnerId} - الملاحظات: {dto.Notes}",
                 UserId = _currentUser.UserId!.Value
             };
@@ -100,12 +105,15 @@ public class FinanceService : IFinanceService
                 UnallocatedAmount = -dto.Amount,
                 Date = dto.Date,
                 Method = dto.Method,
+                Kind = TransactionKind.Refund,
                 Notes = dto.Notes,
                 BranchId = branchId,
                 CompanyId = _currentUser.CompanyId!.Value
             };
             
             _context.CustomerReceipts.Add(receipt);
+
+            var shiftId = await _shiftService.GetCurrentShiftIdAsync();
 
             // Record in CashTransaction: Refund to customer is OUT
             var cashTran = new CashTransaction
@@ -116,6 +124,7 @@ public class FinanceService : IFinanceService
                 Type = TransactionType.Out,
                 SourceType = TransactionSource.Customer,
                 RelatedEntityId = dto.PartnerId,
+                ShiftId = shiftId,
                 Notes = $"رديات لعميل رقم {dto.PartnerId} - الملاحظات: {dto.Notes}",
                 UserId = _currentUser.UserId!.Value
             };
@@ -237,6 +246,8 @@ public class FinanceService : IFinanceService
             
             _context.SupplierPayments.Add(payment);
 
+            var shiftId = await _shiftService.GetCurrentShiftIdAsync();
+
             // Record in CashTransaction
             var cashTran = new CashTransaction
             {
@@ -246,6 +257,7 @@ public class FinanceService : IFinanceService
                 Type = TransactionType.Out,
                 SourceType = TransactionSource.Supplier,
                 RelatedEntityId = dto.PartnerId,
+                ShiftId = shiftId,
                 Notes = $"سند صرف لمورد رقم {dto.PartnerId} - الملاحظات: {dto.Notes}",
                 UserId = _currentUser.UserId!.Value
             };
@@ -285,12 +297,15 @@ public class FinanceService : IFinanceService
                 UnallocatedAmount = -dto.Amount,
                 Date = dto.Date,
                 Method = dto.Method,
+                Kind = TransactionKind.Refund,
                 Notes = dto.Notes,
                 BranchId = branchId,
                 CompanyId = _currentUser.CompanyId!.Value
             };
             
             _context.SupplierPayments.Add(payment);
+
+            var shiftId = await _shiftService.GetCurrentShiftIdAsync();
 
             // Record in CashTransaction: Refund from supplier is IN
             var cashTran = new CashTransaction
@@ -301,6 +316,7 @@ public class FinanceService : IFinanceService
                 Type = TransactionType.In,
                 SourceType = TransactionSource.Supplier,
                 RelatedEntityId = dto.PartnerId,
+                ShiftId = shiftId,
                 Notes = $"رديات من مورد رقم {dto.PartnerId} - الملاحظات: {dto.Notes}",
                 UserId = _currentUser.UserId!.Value
             };
@@ -465,6 +481,7 @@ public class FinanceService : IFinanceService
                 if (inv.Type == InvoiceType.Sale)
                 {
                     stmt.DocumentType = "Sale Invoice";
+                    stmt.TransactionType = "Invoice";
                     stmt.DocumentId = inv.Id;
                     stmt.Description = $"فاتورة مبيعات #{inv.Id}";
                     stmt.Debit = inv.NetTotal;
@@ -474,6 +491,7 @@ public class FinanceService : IFinanceService
                 else if (inv.Type == InvoiceType.SalesReturn)
                 {
                     stmt.DocumentType = "Sales Return";
+                    stmt.TransactionType = "Invoice";
                     stmt.DocumentId = inv.Id;
                     stmt.Description = $"مرتجع مبيعات #{inv.Id}";
                     stmt.Credit = inv.NetTotal;
@@ -483,9 +501,10 @@ public class FinanceService : IFinanceService
             }
             else if (ev.EventType == "Receipt" && ev.Data is CustomerReceipt rec)
             {
-                if (rec.Amount >= 0)
+                if (rec.Kind != TransactionKind.Refund)
                 {
                     stmt.DocumentType = "Receipt";
+                    stmt.TransactionType = rec.Kind.ToString();
                     stmt.DocumentId = rec.Id;
                     stmt.Description = $"سند قبض - {rec.Method}";
                     stmt.Credit = rec.Amount;
@@ -494,8 +513,9 @@ public class FinanceService : IFinanceService
                 }
                 else
                 {
-                    // Negative receipt is a Refund
+                    // Refund
                     stmt.DocumentType = "Refund";
+                    stmt.TransactionType = rec.Kind.ToString();
                     stmt.DocumentId = rec.Id;
                     stmt.Description = $"رد نقدي للعميل - {rec.Method}";
                     stmt.Debit = Math.Abs(rec.Amount);
@@ -672,6 +692,7 @@ public class FinanceService : IFinanceService
                 if (inv.Type == InvoiceType.Purchase)
                 {
                     stmt.DocumentType = "Purchase Invoice";
+                    stmt.TransactionType = "Invoice";
                     stmt.DocumentId = inv.Id;
                     stmt.Description = $"فاتورة مشتريات #{inv.Id}";
                     stmt.Debit = inv.NetTotal;
@@ -681,6 +702,7 @@ public class FinanceService : IFinanceService
                 else if (inv.Type == InvoiceType.PurchaseReturn)
                 {
                     stmt.DocumentType = "Purchase Return";
+                    stmt.TransactionType = "Invoice";
                     stmt.DocumentId = inv.Id;
                     stmt.Description = $"مرتجع مشتريات #{inv.Id}";
                     stmt.Credit = inv.NetTotal;
@@ -690,9 +712,10 @@ public class FinanceService : IFinanceService
             }
             else if (ev.EventType == "Payment" && ev.Data is SupplierPayment pmt)
             {
-                if (pmt.Amount >= 0)
+                if (pmt.Kind != TransactionKind.Refund)
                 {
                     stmt.DocumentType = "Payment";
+                    stmt.TransactionType = pmt.Kind.ToString();
                     stmt.DocumentId = pmt.Id;
                     stmt.Description = $"سند صرف - {pmt.Method}";
                     stmt.Credit = pmt.Amount;
@@ -702,6 +725,7 @@ public class FinanceService : IFinanceService
                 else
                 {
                     stmt.DocumentType = "Refund";
+                    stmt.TransactionType = pmt.Kind.ToString();
                     stmt.DocumentId = pmt.Id;
                     stmt.Description = $"رد نقدي من المورد - {pmt.Method}";
                     stmt.Debit = Math.Abs(pmt.Amount);

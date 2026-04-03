@@ -20,13 +20,16 @@ public class CustomersController : ControllerBase
 {
     private readonly ICustomerService _customerService;
     private readonly IFinanceService _financeService;
+    private readonly IAuditLogService _auditLogService;
 
     public CustomersController(
         ICustomerService customerService,
-        IFinanceService financeService)
+        IFinanceService financeService,
+        IAuditLogService auditLogService)
     {
         _customerService = customerService;
         _financeService = financeService;
+        _auditLogService = auditLogService;
     }
 
     // ============================================================
@@ -216,5 +219,17 @@ public class CustomersController : ControllerBase
     {
         var receipts = await _financeService.GetUnallocatedCustomerReceiptsAsync(id);
         return Ok(ApiResponse<List<ReceiptReadDto>>.SuccessResult(receipts));
+    }
+
+    /// <summary>
+    /// GET /api/v1/customers/{id}/history
+    /// جلب سجل التاريخ (Audit Logs) للعميل
+    /// </summary>
+    [HttpGet("{id:int}/history")]
+    public async Task<ActionResult<ApiResponse<PagedResult<AuditLogReadDto>>>> GetHistory(
+        int id, [FromQuery] PaginationQueryDto query)
+    {
+        var result = await _auditLogService.GetAllAsync(query, entityName: "Customer", entityId: id.ToString());
+        return Ok(ApiResponse<PagedResult<AuditLogReadDto>>.SuccessResult(result));
     }
 }

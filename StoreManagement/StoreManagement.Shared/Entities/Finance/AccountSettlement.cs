@@ -6,6 +6,7 @@ namespace StoreManagement.Shared.Entities.Finance;
 
 /// <summary>
 /// كيان تسوية الحسابات (خصم أو إضافة رصيد يدوي دون حركة نقدية)
+/// WARNING: Do NOT use this to modify CashBalance. CashBalance is legacy opening snapshot only.
 /// </summary>
 public class AccountSettlement : BaseEntity, IBranchEntity
 {
@@ -20,6 +21,9 @@ public class AccountSettlement : BaseEntity, IBranchEntity
 
     // نوع التسوية (إضافة أو خصم)
     public SettlementType Type { get; set; }
+
+    // سبب التسوية
+    public SettlementReason Reason { get; set; }
 
     // مبلغ التسوية
     public decimal Amount { get; set; }

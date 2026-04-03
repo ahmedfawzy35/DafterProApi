@@ -326,7 +326,8 @@ public interface IAuditLogService
     Task<PagedResult<DTOs.AuditLogReadDto>> GetAllAsync(
         DTOs.PaginationQueryDto query,
         string? entityName = null,
-        int? userId = null);
+        int? userId = null,
+        string? entityId = null);
 }
 
 /// <summary>
@@ -408,4 +409,29 @@ public interface IFinanceService
 
     // حساب الرصيد الحالي للمورد
     Task<decimal> GetSupplierCurrentBalanceAsync(int supplierId);
+}
+
+// ===== واجهات الورديات والتنبيهات (Enterprise Upgrades) =====
+
+/// <summary>
+/// خدمة إدارة الورديات (Shift Management) الخاصة بالكاشير والفرع
+/// </summary>
+public interface IShiftService
+{
+    Task<DTOs.ShiftReadDto> OpenShiftAsync(DTOs.OpenShiftDto dto);
+    Task<DTOs.ShiftReadDto> CloseShiftAsync(int shiftId, DTOs.CloseShiftDto dto);
+    Task<DTOs.ShiftReadDto?> GetCurrentShiftAsync();
+    Task<int?> GetCurrentShiftIdAsync();
+    Task<PagedResult<DTOs.ShiftReadDto>> GetAllShiftsAsync(DTOs.PaginationQueryDto query);
+    Task<DTOs.ShiftReadDto> GetShiftByIdAsync(int id);
+}
+
+/// <summary>
+/// خدمة التنبيهات مع Paging و Caching
+/// </summary>
+public interface IAlertService
+{
+    Task<PagedResult<DTOs.LowStockAlertDto>> GetLowStockAlertsAsync(DTOs.PaginationQueryDto query);
+    Task<PagedResult<DTOs.OverdueCustomerAlertDto>> GetOverdueInvoicesAlertsAsync(DTOs.PaginationQueryDto query, int dayThreshold = 30);
+    Task<PagedResult<DTOs.HighDebtCustomerAlertDto>> GetHighDebtCustomersAlertsAsync(DTOs.PaginationQueryDto query);
 }

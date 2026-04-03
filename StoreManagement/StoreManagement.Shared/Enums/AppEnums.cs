@@ -234,3 +234,37 @@ public enum BarcodeFormat
     EAN13 = 1,   // للمنتجات التجارية القياسية (13 رقم)
     CODE128 = 2  // للاستخدام الداخلي والمرن (نصوص وأرقام)
 }
+
+// ===== Commercial System Upgrade Enums =====
+
+/// <summary>
+/// التصنيف الدقيق للمعاملة النقدية
+/// </summary>
+public enum TransactionKind
+{
+    Normal = 1,      // حركة عادية (دفع/قبض لفاتورة)
+    Refund = 2,      // رديات (إرجاع مبلغ للعميل/للمورد)
+    Advance = 3,     // دفعة مقدمة
+    Adjustment = 4   // تسوية (مثل Settlement)
+}
+
+/// <summary>
+/// أسباب التسويات المالية
+/// </summary>
+public enum SettlementReason
+{
+    Discount = 1,       // خصم مسموح به/مكتسب
+    WriteOff = 2,       // إعدام دين
+    Commission = 3,     // عمولة
+    Error = 4,          // تصحيح خطأ
+    Other = 5           // أخرى
+}
+
+/// <summary>
+/// حالة الوردية
+/// </summary>
+public enum ShiftStatus
+{
+    Open = 1,      // مفتوحة
+    Closed = 2     // مغلقة
+}

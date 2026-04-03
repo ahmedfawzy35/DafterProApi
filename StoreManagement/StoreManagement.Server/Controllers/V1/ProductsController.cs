@@ -27,6 +27,7 @@ public class ProductsController : ControllerBase
     private readonly IProductService _productService;
     private readonly IInventoryService _inventoryService;
     private readonly IFileStorageService _fileStorageService;
+    private readonly IAuditLogService _auditLogService;
 
     public ProductsController(
         StoreDbContext context,
@@ -35,7 +36,8 @@ public class ProductsController : ControllerBase
         IBarcodeService barcodeService,
         IProductService productService,
         IInventoryService inventoryService,
-        IFileStorageService fileStorageService)
+        IFileStorageService fileStorageService,
+        IAuditLogService auditLogService)
     {
         _context = context;
         _currentUser = currentUser;
@@ -44,6 +46,7 @@ public class ProductsController : ControllerBase
         _productService = productService;
         _inventoryService = inventoryService;
         _fileStorageService = fileStorageService;
+        _auditLogService = auditLogService;
     }
 
     /// <summary>
@@ -515,6 +518,18 @@ public class ProductsController : ControllerBase
     {
         var result = await _inventoryService.GetHistoryAsync(query, id, from, to);
         return Ok(ApiResponse<PagedResult<StockTransactionReadDto>>.SuccessResult(result));
+    }
+
+    /// <summary>
+    /// GET /api/v1/products/{id}/history
+    /// جلب سجل التاريخ (Audit Logs) للمنتج
+    /// </summary>
+    [HttpGet("{id:int}/history")]
+    public async Task<ActionResult<ApiResponse<PagedResult<AuditLogReadDto>>>> GetHistory(
+        int id, [FromQuery] PaginationQueryDto query)
+    {
+        var result = await _auditLogService.GetAllAsync(query, entityName: "Product", entityId: id.ToString());
+        return Ok(ApiResponse<PagedResult<AuditLogReadDto>>.SuccessResult(result));
     }
     
     [HttpGet("low-stock")]

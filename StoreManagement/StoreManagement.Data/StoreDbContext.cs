@@ -55,9 +55,11 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     public DbSet<StockTransferItem> StockTransferItems => Set<StockTransferItem>();
 
     // ===== المعاملات النقدية والديون =====
+    public DbSet<CashRegisterShift> CashRegisterShifts => Set<CashRegisterShift>();
     public DbSet<CashTransaction> CashTransactions => Set<CashTransaction>();
     public DbSet<AccountSettlement> AccountSettlements => Set<AccountSettlement>();
     public DbSet<CustomerReceipt> CustomerReceipts => Set<CustomerReceipt>();
+
     public DbSet<CustomerReceiptAllocation> CustomerReceiptAllocations => Set<CustomerReceiptAllocation>();
     public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
     public DbSet<SupplierPaymentAllocation> SupplierPaymentAllocations => Set<SupplierPaymentAllocation>();
@@ -194,6 +196,7 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
 
         builder.Entity<CashTransaction>().HasIndex(t => t.CompanyId);
         builder.Entity<CashTransaction>().HasIndex(t => new { t.CompanyId, t.Date });
+        builder.Entity<CashTransaction>().HasIndex(t => t.ShiftId);
 
         // ===== إعداد الـ Concurrency Token =====
         builder.Entity<Customer>()

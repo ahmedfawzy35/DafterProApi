@@ -35,4 +35,10 @@ public class CashTransaction : BaseEntity, IBranchEntity
 
     // معرف الطرف المرتبط (عميل أو مورد حسب SourceType)
     public int? RelatedEntityId { get; set; }
+
+    // معرف الوردية (لربط الحركة بوردية كاشير معينة)
+    public int? ShiftId { get; set; }
+
+    // علاقة الوردية
+    public CashRegisterShift? Shift { get; set; }
 }

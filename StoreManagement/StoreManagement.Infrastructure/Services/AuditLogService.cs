@@ -26,12 +26,15 @@ public class AuditLogService : IAuditLogService
     }
 
     public async Task<PagedResult<AuditLogReadDto>> GetAllAsync(
-        PaginationQueryDto query, string? entityName = null, int? userId = null)
+        PaginationQueryDto query, string? entityName = null, int? userId = null, string? entityId = null)
     {
         var logsQuery = _context.AuditLogs.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(entityName))
             logsQuery = logsQuery.Where(l => l.EntityName == entityName);
+            
+        if (!string.IsNullOrWhiteSpace(entityId))
+            logsQuery = logsQuery.Where(l => l.EntityId == entityId);
         
         if (userId.HasValue)
             logsQuery = logsQuery.Where(l => l.UserId == userId.Value);
