@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using StoreManagement.Data;
 using StoreManagement.Shared.DTOs;
 using StoreManagement.Shared.Entities.Finance;
+using StoreManagement.Shared.Entities.Partners;
 using StoreManagement.Shared.Enums;
 using StoreManagement.Shared.Interfaces;
 using StoreManagement.Shared.Entities.Sales;
@@ -303,39 +304,65 @@ public class FinanceService : IFinanceService
     // Queries / Endpoints
     // ==========================================
 
-    public async Task<List<CustomerStatementDto>> GetCustomerStatementAsync(int customerId, DateTime? from, DateTime? to)
+    public async Task<StatementPagedResult<CustomerStatementDto>> GetCustomerStatementAsync(
+        int customerId, StatementQueryDto query)
     {
-        var result = new List<CustomerStatementDto>();
-        var balance = 0m;
+        // ===== 1. ضبط الفترة الزمنية =====
+        // الافتراضي: آخر 90 يوماً إذا لم تُحدَّد فترة
+        var from = query.From ?? DateTime.UtcNow.AddDays(-90);
+        var to = query.To ?? DateTime.UtcNow;
 
-        // Query Invoices
-        var invoicesQuery = _context.Invoices
-            .Where(i => i.CustomerId == customerId && i.Status == InvoiceStatus.Confirmed);
-        
-        if (from.HasValue) invoicesQuery = invoicesQuery.Where(i => i.Date >= from.Value);
-        if (to.HasValue) invoicesQuery = invoicesQuery.Where(i => i.Date <= to.Value);
+        // تصحيح: نضمن أن to يشمل نهاية اليوم
+        to = to.Date.AddDays(1).AddTicks(-1);
 
-        var invoices = await invoicesQuery.OrderBy(i => i.Date).ToListAsync();
+        // ===== 2. رصيد ما قبل الفترة (Opening Balance للكشف) =====
+        // نحسب ما كان عليه الحساب قبل بداية الفترة
+        var customer = await _context.Customers.FirstOrDefaultAsync(c => c.Id == customerId);
+        var entityOpeningBalance = customer?.OpeningBalance ?? 0m;
 
-        // Query Receipts
-        var receiptsQuery = _context.CustomerReceipts.Where(r => r.CustomerId == customerId);
-        if (from.HasValue) receiptsQuery = receiptsQuery.Where(r => r.Date >= from.Value);
-        if (to.HasValue) receiptsQuery = receiptsQuery.Where(r => r.Date <= to.Value);
+        // ما تراكم قبل from
+        var invoicesBeforeFrom = await _context.Invoices
+            .Where(i => i.CustomerId == customerId
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Date < from
+                     && (i.Type == InvoiceType.Sale || i.Type == InvoiceType.SalesReturn))
+            .SumAsync(i => i.Type == InvoiceType.Sale ? (decimal?)i.NetTotal : -(decimal?)i.NetTotal) ?? 0m;
 
-        var receipts = await receiptsQuery.OrderBy(r => r.Date).ToListAsync();
+        var receiptsBeforeFrom = await _context.CustomerReceipts
+            .Where(r => r.CustomerId == customerId && r.Date < from)
+            .SumAsync(r => (decimal?)r.Amount) ?? 0m;
 
-        // Process sequentially to determine balance over time
-        var allEvents = invoices.Select(i => new { i.Date, EventType = "Invoice", Data = (object)i })
+        // رصيد بداية الكشف = رصيد الافتتاح + حركات ما قبل الفترة
+        var openingBalance = entityOpeningBalance + invoicesBeforeFrom - receiptsBeforeFrom;
+
+        // ===== 3. جلب حركات الفترة =====
+        var invoices = await _context.Invoices
+            .Where(i => i.CustomerId == customerId
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Date >= from && i.Date <= to
+                     && (i.Type == InvoiceType.Sale || i.Type == InvoiceType.SalesReturn))
+            .ToListAsync();
+
+        var receipts = await _context.CustomerReceipts
+            .Where(r => r.CustomerId == customerId && r.Date >= from && r.Date <= to)
+            .ToListAsync();
+
+        // ===== 4. دمج وترتيب زمني =====
+        var allEvents = invoices
+            .Select(i => new { i.Date, EventType = "Invoice", Data = (object)i })
             .Concat(receipts.Select(r => new { r.Date, EventType = "Receipt", Data = (object)r }))
             .OrderBy(e => e.Date)
             .ToList();
 
+        // ===== 5. بناء سطور الكشف مع الرصيد المتراكم =====
+        var allLines = new List<CustomerStatementDto>();
+        var runningBalance = openingBalance;
+        var totalDebit = 0m;
+        var totalCredit = 0m;
+
         foreach (var ev in allEvents)
         {
-            var stmt = new CustomerStatementDto
-            {
-                Date = ev.Date
-            };
+            var stmt = new CustomerStatementDto { Date = ev.Date };
 
             if (ev.EventType == "Invoice" && ev.Data is Invoice inv)
             {
@@ -343,9 +370,10 @@ public class FinanceService : IFinanceService
                 {
                     stmt.DocumentType = "Sale Invoice";
                     stmt.DocumentId = inv.Id;
-                    stmt.Description = $"مبيعات فاتورة #{inv.Id}";
+                    stmt.Description = $"فاتورة مبيعات #{inv.Id}";
                     stmt.Debit = inv.NetTotal;
-                    balance += inv.NetTotal;
+                    runningBalance += inv.NetTotal;
+                    totalDebit += inv.NetTotal;
                 }
                 else if (inv.Type == InvoiceType.SalesReturn)
                 {
@@ -353,23 +381,45 @@ public class FinanceService : IFinanceService
                     stmt.DocumentId = inv.Id;
                     stmt.Description = $"مرتجع مبيعات #{inv.Id}";
                     stmt.Credit = inv.NetTotal;
-                    balance -= inv.NetTotal;
+                    runningBalance -= inv.NetTotal;
+                    totalCredit += inv.NetTotal;
                 }
             }
             else if (ev.EventType == "Receipt" && ev.Data is CustomerReceipt rec)
             {
                 stmt.DocumentType = "Receipt";
                 stmt.DocumentId = rec.Id;
-                stmt.Description = $"سند تحصيل نقدية {rec.Method.ToString()}";
+                stmt.Description = $"سند قبض - {rec.Method}";
                 stmt.Credit = rec.Amount;
-                balance -= rec.Amount;
+                runningBalance -= rec.Amount;
+                totalCredit += rec.Amount;
             }
 
-            stmt.Balance = balance;
-            result.Add(stmt);
+            stmt.Balance = runningBalance;
+            allLines.Add(stmt);
         }
 
-        return result;
+        // ===== 6. تطبيق Pagination =====
+        var totalCount = allLines.Count;
+        var pageSize = Math.Clamp(query.PageSize, 1, 500); // الحد الأقصى 500 سطر
+        var pageNumber = Math.Max(1, query.PageNumber);
+
+        var pagedItems = allLines
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return new StatementPagedResult<CustomerStatementDto>
+        {
+            Items = pagedItems,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            OpeningBalance = openingBalance,
+            TotalDebit = totalDebit,
+            TotalCredit = totalCredit,
+            ClosingBalance = runningBalance
+        };
     }
 
     public async Task<List<InvoiceReadDto>> GetOpenCustomerInvoicesAsync(int customerId)
@@ -405,6 +455,235 @@ public class FinanceService : IFinanceService
             .ToListAsync();
 
         return receipts.Select(MapCustomerReceiptToDto).ToList();
+    }
+
+    // ==========================================
+    // Customer Balance Calculation
+    // ==========================================
+
+    /// <summary>
+    /// حساب الرصيد الحالي للعميل من مصدر الحقيقة الفعلي (Receipts/Invoices)
+    /// الرصيد = OpeningBalance + صافي الفواتير - المقبوضات
+    /// قيمة موجبة = العميل مدين | قيمة سالبة = العميل دائن (دفع أكثر)
+    /// </summary>
+    public async Task<decimal> GetCustomerCurrentBalanceAsync(int customerId)
+    {
+        // جلب رصيد الافتتاح من الكيان
+        var customer = await _context.Customers
+            .FirstOrDefaultAsync(c => c.Id == customerId);
+
+        if (customer is null) return 0m;
+
+        // إجمالي فواتير البيع المؤكدة
+        var invoicedTotal = await _context.Invoices
+            .Where(i => i.CustomerId == customerId
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Type == InvoiceType.Sale)
+            .SumAsync(i => (decimal?)i.NetTotal) ?? 0m;
+
+        // إجمالي مرتجعات البيع
+        var returnTotal = await _context.Invoices
+            .Where(i => i.CustomerId == customerId
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Type == InvoiceType.SalesReturn)
+            .SumAsync(i => (decimal?)i.NetTotal) ?? 0m;
+
+        // إجمالي المقبوضات
+        var receivedTotal = await _context.CustomerReceipts
+            .Where(r => r.CustomerId == customerId)
+            .SumAsync(r => (decimal?)r.Amount) ?? 0m;
+
+        return customer.OpeningBalance + (invoicedTotal - returnTotal) - receivedTotal;
+    }
+
+    // ==========================================
+    // Supplier Statement & Queries
+    // ==========================================
+
+    /// <summary>
+    /// كشف حساب المورد خلال فترة محددة
+    /// يدمج فواتير الشراء والمرتجعات والمدفوعات في سطر واحد متسلسل مع الرصيد المتراكم
+    /// </summary>
+    public async Task<StatementPagedResult<SupplierStatementDto>> GetSupplierStatementAsync(
+        int supplierId, StatementQueryDto query)
+    {
+        // ===== 1. ضبط الفترة الزمنية =====
+        var from = query.From ?? DateTime.UtcNow.AddDays(-90);
+        var to = (query.To ?? DateTime.UtcNow).Date.AddDays(1).AddTicks(-1);
+
+        // ===== 2. رصيد ما قبل الفترة (Opening Balance للكشف) =====
+        var supplier = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == supplierId);
+        var entityOpeningBalance = supplier?.OpeningBalance ?? 0m;
+
+        // فواتير ومرتجعات قبل الفترة
+        var purchasesBeforeFrom = await _context.Invoices
+            .Where(i => i.SupplierId == supplierId
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Date < from
+                     && (i.Type == InvoiceType.Purchase || i.Type == InvoiceType.PurchaseReturn))
+            .SumAsync(i => i.Type == InvoiceType.Purchase ? (decimal?)i.NetTotal : -(decimal?)i.NetTotal) ?? 0m;
+
+        var paymentsBeforeFrom = await _context.SupplierPayments
+            .Where(p => p.SupplierId == supplierId && p.Date < from)
+            .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+
+        var openingBalance = entityOpeningBalance + purchasesBeforeFrom - paymentsBeforeFrom;
+
+        // ===== 3. جلب حركات الفترة =====
+        var invoices = await _context.Invoices
+            .Where(i => i.SupplierId == supplierId
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Date >= from && i.Date <= to
+                     && (i.Type == InvoiceType.Purchase || i.Type == InvoiceType.PurchaseReturn))
+            .ToListAsync();
+
+        var payments = await _context.SupplierPayments
+            .Where(p => p.SupplierId == supplierId && p.Date >= from && p.Date <= to)
+            .ToListAsync();
+
+        // ===== 4. دمج وترتيب زمني =====
+        var allEvents = invoices
+            .Select(i => new { i.Date, EventType = "Invoice", Data = (object)i })
+            .Concat(payments.Select(p => new { p.Date, EventType = "Payment", Data = (object)p }))
+            .OrderBy(e => e.Date)
+            .ToList();
+
+        // ===== 5. بناء سطور الكشف =====
+        var allLines = new List<SupplierStatementDto>();
+        var runningBalance = openingBalance;
+        var totalDebit = 0m;
+        var totalCredit = 0m;
+
+        foreach (var ev in allEvents)
+        {
+            var stmt = new SupplierStatementDto { Date = ev.Date };
+
+            if (ev.EventType == "Invoice" && ev.Data is Invoice inv)
+            {
+                if (inv.Type == InvoiceType.Purchase)
+                {
+                    stmt.DocumentType = "Purchase Invoice";
+                    stmt.DocumentId = inv.Id;
+                    stmt.Description = $"فاتورة مشتريات #{inv.Id}";
+                    stmt.Debit = inv.NetTotal;
+                    runningBalance += inv.NetTotal;
+                    totalDebit += inv.NetTotal;
+                }
+                else if (inv.Type == InvoiceType.PurchaseReturn)
+                {
+                    stmt.DocumentType = "Purchase Return";
+                    stmt.DocumentId = inv.Id;
+                    stmt.Description = $"مرتجع مشتريات #{inv.Id}";
+                    stmt.Credit = inv.NetTotal;
+                    runningBalance -= inv.NetTotal;
+                    totalCredit += inv.NetTotal;
+                }
+            }
+            else if (ev.EventType == "Payment" && ev.Data is SupplierPayment pmt)
+            {
+                stmt.DocumentType = "Payment";
+                stmt.DocumentId = pmt.Id;
+                stmt.Description = $"سند صرف - {pmt.Method}";
+                stmt.Credit = pmt.Amount;
+                runningBalance -= pmt.Amount;
+                totalCredit += pmt.Amount;
+            }
+
+            stmt.Balance = runningBalance;
+            allLines.Add(stmt);
+        }
+
+        // ===== 6. Pagination =====
+        var totalCount = allLines.Count;
+        var pageSize = Math.Clamp(query.PageSize, 1, 500);
+        var pageNumber = Math.Max(1, query.PageNumber);
+
+        return new StatementPagedResult<SupplierStatementDto>
+        {
+            Items = allLines.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList(),
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            OpeningBalance = openingBalance,
+            TotalDebit = totalDebit,
+            TotalCredit = totalCredit,
+            ClosingBalance = runningBalance
+        };
+    }
+
+    /// <summary>
+    /// فواتير المورد المفتوحة (التي لم تُدفع بالكامل)
+    /// </summary>
+    public async Task<List<InvoiceReadDto>> GetOpenSupplierInvoicesAsync(int supplierId)
+    {
+        var invoices = await _context.Invoices
+            .Where(i => i.SupplierId == supplierId
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.PaymentStatus != PaymentStatus.Paid
+                     && i.Type == InvoiceType.Purchase)
+            .OrderBy(i => i.Date)
+            .ToListAsync();
+
+        return invoices.Select(i => new InvoiceReadDto
+        {
+            Id = i.Id,
+            InvoiceType = i.Type.ToString(),
+            Date = i.Date,
+            TotalValue = i.TotalValue,
+            Discount = i.Discount,
+            Paid = i.Paid,
+            AllocatedAmount = i.AllocatedAmount,
+            Status = i.Status.ToString(),
+            PaymentStatus = i.PaymentStatus.ToString()
+        }).ToList();
+    }
+
+    /// <summary>
+    /// مدفوعات المورد التي لم تُخصص على فواتير بعد
+    /// </summary>
+    public async Task<List<ReceiptReadDto>> GetUnallocatedSupplierPaymentsAsync(int supplierId)
+    {
+        var payments = await _context.SupplierPayments
+            .Include(p => p.Allocations)
+            .Where(p => p.SupplierId == supplierId && p.UnallocatedAmount > 0)
+            .OrderBy(p => p.Date)
+            .ToListAsync();
+
+        return payments.Select(MapSupplierPaymentToDto).ToList();
+    }
+
+    /// <summary>
+    /// حساب الرصيد الحالي للمورد من مصدر الحقيقة الفعلي
+    /// الرصيد = OpeningBalance + صافي الفواتير - المدفوعات
+    /// قيمة موجبة = مدينون للمورد | قيمة سالبة = المورد دائن (دفعنا أكثر)
+    /// </summary>
+    public async Task<decimal> GetSupplierCurrentBalanceAsync(int supplierId)
+    {
+        var supplier = await _context.Suppliers
+            .FirstOrDefaultAsync(s => s.Id == supplierId);
+
+        if (supplier is null) return 0m;
+
+        // إجمالي فواتير الشراء
+        var purchaseTotal = await _context.Invoices
+            .Where(i => i.SupplierId == supplierId
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Type == InvoiceType.Purchase)
+            .SumAsync(i => (decimal?)i.NetTotal) ?? 0m;
+
+        // إجمالي مرتجعات الشراء
+        var returnTotal = await _context.Invoices
+            .Where(i => i.SupplierId == supplierId
+                     && i.Status == InvoiceStatus.Confirmed
+                     && i.Type == InvoiceType.PurchaseReturn)
+            .SumAsync(i => (decimal?)i.NetTotal) ?? 0m;
+
+        // إجمالي المدفوعات للمورد
+        var paidTotal = await _context.SupplierPayments
+            .Where(p => p.SupplierId == supplierId)
+            .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+
+        return supplier.OpeningBalance + (purchaseTotal - returnTotal) - paidTotal;
     }
 
     // ==========================================

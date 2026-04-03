@@ -3,15 +3,103 @@ using StoreManagement.Shared.Entities;
 
 namespace StoreManagement.Shared.DTOs;
 
+// ===================================
+// ===== DTOs مشتركة =====
+// ===================================
+
+/// <summary>
+/// DTO للاستعلام عن كشف الحساب (Customer + Supplier) مع Pagination
+/// يُستخدم في: GET /customers/{id}/statement و GET /suppliers/{id}/statement
+/// </summary>
+public class StatementQueryDto
+{
+    // تصفية بالتاريخ — اختياريان، إذا لم يُحدَّدا يُعاد آخر 90 يوماً كافتراضي
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+
+    // الصفحة الحالية (تبدأ من 1)
+    public int PageNumber { get; set; } = 1;
+
+    // عدد السطور في الصفحة (50 = عرض طبيعي، 200 = تصدير)
+    public int PageSize { get; set; } = 50;
+}
+
+/// <summary>
+/// نتيجة كشف الحساب المُقسَّمة على صفحات
+/// تُعاد من GET /customers/{id}/statement و GET /suppliers/{id}/statement
+/// </summary>
+public class StatementPagedResult<T>
+{
+    // سطور الكشف
+    public List<T> Items { get; set; } = [];
+
+    // ===== Pagination =====
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+    public bool HasNextPage => PageNumber < TotalPages;
+    public bool HasPreviousPage => PageNumber > 1;
+
+    // ===== ملخص الرصيد للصفحة الكاملة (ليس الصفحة الحالية فقط) =====
+    // رصيد الافتتاح للفترة المختارة
+    public decimal OpeningBalance { get; set; }
+
+    // إجمالي المدين في الفترة
+    public decimal TotalDebit { get; set; }
+
+    // إجمالي الدائن في الفترة
+    public decimal TotalCredit { get; set; }
+
+    // الرصيد الختامي للفترة
+    public decimal ClosingBalance { get; set; }
+}
+
+// ===================================
 // ===== DTOs خاصة بالعميل =====
+// ===================================
+
+/// <summary>
+/// DTO رقم الهاتف المستقل — يدعم تمييز الرقم الأساسي
+/// يُستخدم في Create و Update
+/// </summary>
+public class PhoneDto
+{
+    // رقم الهاتف (مثال: 01012345678)
+    public string PhoneNumber { get; set; } = string.Empty;
+
+    // هل هذا الرقم هو الرقم الأساسي؟ (الأول في القائمة عادةً)
+    public bool IsPrimary { get; set; } = false;
+}
 
 /// <summary>
 /// بيانات إنشاء عميل جديد
 /// </summary>
 public class CreateCustomerDto
 {
+    // الاسم مطلوب
     public string Name { get; set; } = string.Empty;
-    public List<string> Phones { get; set; } = [];
+
+    // كود داخلي اختياري — مثل: C001 (فريد داخل الشركة)
+    public string? Code { get; set; }
+
+    // العنوان الجغرافي أو العنوان التجاري
+    public string? Address { get; set; }
+
+    // البريد الإلكتروني (اختياري)
+    public string? Email { get; set; }
+
+    // ملاحظات داخلية على العميل
+    public string? Notes { get; set; }
+
+    // رصيد الافتتاح عند إضافة العميل للنظام (إن كان لديه دين سابق)
+    public decimal OpeningBalance { get; set; } = 0;
+
+    // الحد الائتماني المسموح (0 = لا حد أقصى)
+    public decimal CreditLimit { get; set; } = 0;
+
+    // قائمة أرقام الهواتف — يجب أن يكون أحدها IsPrimary = true إن أُرسل أكثر من رقم
+    public List<PhoneDto> Phones { get; set; } = [];
 }
 
 /// <summary>
@@ -19,44 +107,329 @@ public class CreateCustomerDto
 /// </summary>
 public class UpdateCustomerDto
 {
+    // الاسم مطلوب
     public string Name { get; set; } = string.Empty;
-    public List<string> Phones { get; set; } = [];
+
+    // الكود الداخلي (اختياري)
+    public string? Code { get; set; }
+
+    // العنوان
+    public string? Address { get; set; }
+
+    // البريد الإلكتروني
+    public string? Email { get; set; }
+
+    // الملاحظات
+    public string? Notes { get; set; }
+
+    // الحد الائتماني
+    public decimal CreditLimit { get; set; } = 0;
+
+    // قائمة الهواتف الجديدة (تُحدَّث بالكامل — replace all)
+    public List<PhoneDto> Phones { get; set; } = [];
 }
 
 /// <summary>
-/// بيانات عرض العميل (استجابة القراءة)
+/// بيانات عرض العميل (استجابة القراءة العامة)
+/// يُستخدم في قوائم العملاء والبحث
 /// </summary>
 public class CustomerReadDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? Code { get; set; }
+    public string? Address { get; set; }
+    public string? Email { get; set; }
+    public string? Notes { get; set; }
+    public bool IsActive { get; set; }
+
+    // [LEGACY] الرصيد القديم — يُعرض للتوافق الخلفي فقط
+    // مصدر الحقيقة الفعلي هو /profile endpoint
     public decimal CashBalance { get; set; }
-    public List<string> Phones { get; set; } = [];
+
+    // رصيد الافتتاح
+    public decimal OpeningBalance { get; set; }
+
+    // الحد الائتماني
+    public decimal CreditLimit { get; set; }
+
+    // الرقم الأساسي فقط (للعرض السريع في القوائم)
+    public string? PrimaryPhone { get; set; }
+
+    // كل الأرقام
+    public List<PhoneDto> Phones { get; set; } = [];
+
     public DateTime CreatedDate { get; set; }
+
+    // ===== Audit Trail (حالة النشاط) =====
+    // متى تم آخر تفعيل أو تعطيل لهذا العميل؟
+    public DateTime? StatusChangedAt { get; set; }
+    // من قام بالتفعيل/التعطيل؟
+    public string? StatusChangedBy { get; set; }
 }
 
-// ===== DTOs خاصة بالمورد =====
+/// <summary>
+/// فلاتر البحث في العملاء
+/// يُستخدم في GET /api/v1/customers
+/// </summary>
+public class CustomerFilterDto : PaginationQueryDto
+{
+    // البحث النصي — يشمل الاسم والكود ورقم الهاتف
+    // (Search موروث من PaginationQueryDto)
 
+    // فلتر حالة النشاط: null = الكل، true = نشط فقط، false = معطّل فقط
+    public bool? IsActive { get; set; } = true;
+
+    // فلتر: العملاء الذين عليهم دين غير محسوم (HasDebt)
+    // يُحسب بشكل Dynamic في الـ Service ولا يُخزَّن
+    public bool? HasDebt { get; set; }
+
+    // فلتر: العملاء الذين لديهم فواتير مفتوحة
+    public bool? HasOpenInvoices { get; set; }
+}
+
+/// <summary>
+/// ملف العميل الشامل — يُعاد من GET /api/v1/customers/{id}/profile
+/// يجمع بيانات العميل + الرصيد المحسوب + آخر الحركات
+/// </summary>
+public class CustomerProfileDto
+{
+    // البيانات الأساسية للعميل
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Code { get; set; }
+    public string? Address { get; set; }
+    public string? Email { get; set; }
+    public string? Notes { get; set; }
+    public bool IsActive { get; set; }
+    public List<PhoneDto> Phones { get; set; } = [];
+    public decimal CreditLimit { get; set; }
+    public DateTime CreatedDate { get; set; }
+
+    // ===== الملخص المالي المحسوب =====
+
+    // رصيد الافتتاح المُدخَّل عند إنشاء العميل
+    public decimal OpeningBalance { get; set; }
+
+    // إجمالي قيمة فواتير البيع المؤكدة
+    public decimal TotalInvoiced { get; set; }
+
+    // إجمالي المقبوضات من العميل
+    public decimal TotalReceived { get; set; }
+
+    // الرصيد الحالي = OpeningBalance + TotalInvoiced - TotalReceived
+    // قيمة موجبة = العميل مدين
+    // قيمة سالبة = العميل دائن (زاد من دفعاته)
+    public decimal CurrentBalance { get; set; }
+
+    // إجمالي الفواتير غير المدفوعة بالكامل
+    public decimal TotalOutstanding { get; set; }
+
+    // المقبوضات التي لم تُخصص على فواتير بعد
+    public decimal UnallocatedReceipts { get; set; }
+
+    // عدد الفواتير المفتوحة
+    public int OpenInvoicesCount { get; set; }
+
+    // هل تجاوز الحد الائتماني؟
+    public bool IsOverCreditLimit { get; set; }
+
+    // آخر 5 فواتير
+    public List<InvoiceSummaryDto> RecentInvoices { get; set; } = [];
+
+    // آخر 5 مقبوضات
+    public List<ReceiptSummaryDto> RecentReceipts { get; set; } = [];
+}
+
+/// <summary>
+/// ملخص سريع لفاتورة — يُستخدم في Profile
+/// </summary>
+public class InvoiceSummaryDto
+{
+    public int Id { get; set; }
+    public string InvoiceType { get; set; } = string.Empty;
+    public DateTime Date { get; set; }
+    public decimal NetTotal { get; set; }
+    public string PaymentStatus { get; set; } = string.Empty;
+    public decimal Remaining { get; set; }
+}
+
+/// <summary>
+/// ملخص سريع لسند قبض — يُستخدم في Profile
+/// </summary>
+public class ReceiptSummaryDto
+{
+    public int Id { get; set; }
+    public DateTime Date { get; set; }
+    public decimal Amount { get; set; }
+    public decimal UnallocatedAmount { get; set; }
+    public string Method { get; set; } = string.Empty;
+}
+
+// ===================================
+// ===== DTOs خاصة بالمورد =====
+// ===================================
+
+/// <summary>
+/// بيانات إنشاء مورد جديد
+/// </summary>
 public class CreateSupplierDto
 {
+    // الاسم مطلوب
     public string Name { get; set; } = string.Empty;
-    public List<string> Phones { get; set; } = [];
+
+    // كود داخلي اختياري — مثل: S001
+    public string? Code { get; set; }
+
+    // العنوان
+    public string? Address { get; set; }
+
+    // البريد الإلكتروني (اختياري)
+    public string? Email { get; set; }
+
+    // ملاحظات داخلية
+    public string? Notes { get; set; }
+
+    // رصيد الافتتاح (إن كان للمورد دين سابق من قبل النظام)
+    public decimal OpeningBalance { get; set; } = 0;
+
+    // قائمة الهواتف
+    public List<PhoneDto> Phones { get; set; } = [];
 }
 
+/// <summary>
+/// بيانات تعديل مورد موجود
+/// </summary>
 public class UpdateSupplierDto
 {
+    // الاسم مطلوب
     public string Name { get; set; } = string.Empty;
-    public List<string> Phones { get; set; } = [];
+
+    // الكود الداخلي (اختياري)
+    public string? Code { get; set; }
+
+    // العنوان
+    public string? Address { get; set; }
+
+    // البريد الإلكتروني
+    public string? Email { get; set; }
+
+    // الملاحظات
+    public string? Notes { get; set; }
+
+    // قائمة الهواتف الجديدة (تُحدَّث بالكامل)
+    public List<PhoneDto> Phones { get; set; } = [];
 }
 
+/// <summary>
+/// بيانات عرض المورد (استجابة القراءة العامة)
+/// </summary>
 public class SupplierReadDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? Code { get; set; }
+    public string? Address { get; set; }
+    public string? Email { get; set; }
+    public string? Notes { get; set; }
+    public bool IsActive { get; set; }
+
+    // [LEGACY] الرصيد القديم — للتوافق الخلفي
     public decimal CashBalance { get; set; }
-    public List<string> Phones { get; set; } = [];
+
+    // رصيد الافتتاح
+    public decimal OpeningBalance { get; set; }
+
+    // الرقم الأساسي للعرض السريع
+    public string? PrimaryPhone { get; set; }
+
+    // كل الأرقام
+    public List<PhoneDto> Phones { get; set; } = [];
+
     public DateTime CreatedDate { get; set; }
+
+    // ===== Audit Trail (حالة النشاط) =====
+    public DateTime? StatusChangedAt { get; set; }
+    public string? StatusChangedBy { get; set; }
 }
+
+/// <summary>
+/// فلاتر البحث في الموردين
+/// </summary>
+public class SupplierFilterDto : PaginationQueryDto
+{
+    // فلتر حالة النشاط: null = الكل، true = نشط، false = معطّل
+    public bool? IsActive { get; set; } = true;
+
+    // فلتر: الموردون الذين عليهم مبالغ مستحقة
+    public bool? HasPayable { get; set; }
+
+    // فلتر: الموردون الذين لديهم فواتير مفتوحة
+    public bool? HasOpenInvoices { get; set; }
+}
+
+/// <summary>
+/// ملف المورد الشامل — يُعاد من GET /api/v1/suppliers/{id}/profile
+/// </summary>
+public class SupplierProfileDto
+{
+    // البيانات الأساسية للمورد
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Code { get; set; }
+    public string? Address { get; set; }
+    public string? Email { get; set; }
+    public string? Notes { get; set; }
+    public bool IsActive { get; set; }
+    public List<PhoneDto> Phones { get; set; } = [];
+    public DateTime CreatedDate { get; set; }
+
+    // ===== الملخص المالي المحسوب =====
+
+    // رصيد الافتتاح
+    public decimal OpeningBalance { get; set; }
+
+    // إجمالي فواتير الشراء المؤكدة
+    public decimal TotalPurchased { get; set; }
+
+    // إجمالي المدفوعات للمورد
+    public decimal TotalPaid { get; set; }
+
+    // الرصيد الحالي = OpeningBalance + TotalPurchased - TotalPaid
+    // قيمة موجبة = مدينون للمورد
+    // قيمة سالبة = المورد دائن (زادت مدفوعاتنا)
+    public decimal CurrentBalance { get; set; }
+
+    // إجمالي الفواتير غير المدفوعة
+    public decimal TotalOutstanding { get; set; }
+
+    // المدفوعات التي لم تُخصص على فواتير بعد
+    public decimal UnallocatedPayments { get; set; }
+
+    // عدد الفواتير المفتوحة
+    public int OpenInvoicesCount { get; set; }
+
+    // آخر 5 فواتير
+    public List<InvoiceSummaryDto> RecentInvoices { get; set; } = [];
+
+    // آخر 5 مدفوعات
+    public List<ReceiptSummaryDto> RecentPayments { get; set; } = [];
+}
+
+/// <summary>
+/// DTO لكشف حساب المورد — يُعاد من GET /api/v1/suppliers/{id}/statement
+/// </summary>
+public class SupplierStatementDto
+{
+    public DateTime Date { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string DocumentType { get; set; } = string.Empty;
+    public int DocumentId { get; set; }
+    public decimal Debit { get; set; }   // علينا (فاتورة مشتريات = نحن مدينون)
+    public decimal Credit { get; set; }  // لنا (سداد أو مرتجع)
+    public decimal Balance { get; set; }
+}
+
 
 // ===== DTOs خاصة بتصنيف المنتج (Category) =====
 

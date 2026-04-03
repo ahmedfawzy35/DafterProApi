@@ -101,4 +101,18 @@ public class InvoiceItem
 
     // الإجمالي الفرعي
     public decimal Subtotal => (decimal)Quantity * UnitPrice;
+
+    // ===== نظام حساب الأرباح =====
+
+    // سعر التكلفة للوحدة الواحدة "وقت البيع" (حتى لا تتأثر الحسابات السابقة بتغير تكلفة المنتج لاحقاً)
+    public decimal CostPriceAtSale { get; set; }
+
+    // إجمالي التكلفة لهذا السطر
+    public decimal TotalCost => (decimal)Quantity * CostPriceAtSale;
+
+    // الربح من هذا السطر (للبيع فقط، للمشتريات سيكون 0 عادةً)
+    public decimal Profit => Subtotal - TotalCost;
+
+    // هامش الربح (كنسبة مئوية)
+    public decimal ProfitMargin => Subtotal > 0 ? (Profit / Subtotal) * 100 : 0;
 }

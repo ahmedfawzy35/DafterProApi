@@ -188,10 +188,12 @@ builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
 // Business Logic Services (Scoped)
 builder.Services.AddScoped<ICustomerService, CustomerService>();
+builder.Services.AddScoped<ISupplierService, SupplierService>();  // خدمة الموردين المستقلة الجديدة
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<ICashTransactionService, CashTransactionService>();
 builder.Services.AddScoped<IFinanceService, FinanceService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IBranchService, BranchService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IProductService, ProductService>();

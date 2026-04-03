@@ -19,18 +19,32 @@ public class MappingProfile : Profile
     public MappingProfile()
     {
         // ===== العميل =====
-        CreateMap<CreateCustomerDto, Customer>();
-        CreateMap<UpdateCustomerDto, Customer>();
+        // ملاحظة: خرائط التحويل تُستخدم بشكل محدود في هذا المشروع — الخدمات تَبني التحويل يدوياً
+        // لذا الخرائط هنا هي للتوثيق فقط ولا تُستخدم من Controllers مباشرة
         CreateMap<Customer, CustomerReadDto>()
             .ForMember(dest => dest.Phones,
-                opt => opt.MapFrom(src => src.Phones.Select(p => p.PhoneNumber).ToList()));
+                opt => opt.MapFrom(src => src.Phones.Select(p => new PhoneDto
+                {
+                    PhoneNumber = p.PhoneNumber,
+                    IsPrimary = p.IsPrimary
+                }).ToList()))
+            .ForMember(dest => dest.PrimaryPhone,
+                opt => opt.MapFrom(src =>
+                    src.Phones.FirstOrDefault(p => p.IsPrimary)!.PhoneNumber
+                    ?? src.Phones.FirstOrDefault()!.PhoneNumber));
 
         // ===== المورد =====
-        CreateMap<CreateSupplierDto, Supplier>();
-        CreateMap<UpdateSupplierDto, Supplier>();
         CreateMap<Supplier, SupplierReadDto>()
             .ForMember(dest => dest.Phones,
-                opt => opt.MapFrom(src => src.Phones.Select(p => p.PhoneNumber).ToList()));
+                opt => opt.MapFrom(src => src.Phones.Select(p => new PhoneDto
+                {
+                    PhoneNumber = p.PhoneNumber,
+                    IsPrimary = p.IsPrimary
+                }).ToList()))
+            .ForMember(dest => dest.PrimaryPhone,
+                opt => opt.MapFrom(src =>
+                    src.Phones.FirstOrDefault(p => p.IsPrimary)!.PhoneNumber
+                    ?? src.Phones.FirstOrDefault()!.PhoneNumber));
 
         // ===== المنتج =====
         CreateMap<CreateProductDto, Product>();

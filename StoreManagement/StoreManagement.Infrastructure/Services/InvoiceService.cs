@@ -153,7 +153,8 @@ public class InvoiceService : IInvoiceService
                 {
                     ProductId = itemDto.ProductId,
                     Quantity = itemDto.Quantity,
-                    UnitPrice = itemDto.UnitPrice
+                    UnitPrice = itemDto.UnitPrice,
+                    CostPriceAtSale = product.CostPrice // ✅ تخزين تكلفة الوحدة وقت البيع لاحتساب الأرباح
                 });
 
                 totalValue += (decimal)itemDto.Quantity * itemDto.UnitPrice;

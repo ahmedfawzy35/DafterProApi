@@ -124,12 +124,26 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
             .HasIndex(c => new { c.CompanyId, c.Name })
             .IsUnique()
             .HasFilter("[IsDeleted] = 0");
+        // فهرس Code - فريد داخل الشركة إن وُجد (يسمح بـ null)
+        builder.Entity<Customer>()
+            .HasIndex(c => new { c.CompanyId, c.Code })
+            .IsUnique()
+            .HasFilter("[Code] IS NOT NULL AND [IsDeleted] = 0");
+        // فهرس IsActive لتسريع الفلتر الافتراضي
+        builder.Entity<Customer>().HasIndex(c => c.IsActive);
 
         builder.Entity<Supplier>().HasIndex(s => s.CompanyId);
         builder.Entity<Supplier>()
             .HasIndex(s => new { s.CompanyId, s.Name })
             .IsUnique()
             .HasFilter("[IsDeleted] = 0");
+        // فهرس Code - فريد داخل الشركة إن وُجد
+        builder.Entity<Supplier>()
+            .HasIndex(s => new { s.CompanyId, s.Code })
+            .IsUnique()
+            .HasFilter("[Code] IS NOT NULL AND [IsDeleted] = 0");
+        // فهرس IsActive
+        builder.Entity<Supplier>().HasIndex(s => s.IsActive);
 
         builder.Entity<Product>().HasIndex(p => p.CompanyId);
         builder.Entity<Product>()
@@ -220,8 +234,18 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         // العميل والمورد
         builder.Entity<Customer>()
             .Property(c => c.CashBalance).HasColumnType("decimal(18,4)");
+        // حقل رصيد الافتتاح الجديد
+        builder.Entity<Customer>()
+            .Property(c => c.OpeningBalance).HasColumnType("decimal(18,4)");
+        // حقل الحد الائتماني الجديد
+        builder.Entity<Customer>()
+            .Property(c => c.CreditLimit).HasColumnType("decimal(18,4)");
+
         builder.Entity<Supplier>()
             .Property(s => s.CashBalance).HasColumnType("decimal(18,4)");
+        // حقل رصيد الافتتاح الجديد
+        builder.Entity<Supplier>()
+            .Property(s => s.OpeningBalance).HasColumnType("decimal(18,4)");
 
         // المعاملات المالية
         builder.Entity<CashTransaction>()

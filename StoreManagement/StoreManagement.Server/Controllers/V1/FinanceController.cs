@@ -62,11 +62,15 @@ public class FinanceController : ControllerBase
     // Reports & Statements
     // ==========================================
 
+    // ملاحظة: هذا الـ endpoint مُكرَّر في CustomersController (/customers/{id}/statement)
+    // يُحتفظ به هنا للتوافق الخلفي فقط
     [HttpGet("customers/{customerId}/statement")]
     [Authorize]
-    public async Task<IActionResult> GetCustomerStatement(int customerId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    public async Task<IActionResult> GetCustomerStatement(
+        int customerId,
+        [FromQuery] StatementQueryDto query)
     {
-        var result = await _financeService.GetCustomerStatementAsync(customerId, from, to);
+        var result = await _financeService.GetCustomerStatementAsync(customerId, query);
         return Ok(result);
     }
 

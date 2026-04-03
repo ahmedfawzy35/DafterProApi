@@ -79,14 +79,64 @@ public interface IOutboxService
 
 /// <summary>
 /// خدمة إدارة العملاء (Business Logic)
+/// عمليات CRUD والتفعيل/التعطيل والبحث وملف العميل
 /// </summary>
 public interface ICustomerService
 {
-    Task<PagedResult<DTOs.CustomerReadDto>> GetAllAsync(DTOs.PaginationQueryDto query);
+    // جلب قائمة العملاء مع Filters و Pagination
+    Task<PagedResult<DTOs.CustomerReadDto>> GetAllAsync(DTOs.CustomerFilterDto filter);
+
+    // جلب عميل بال Id
     Task<DTOs.CustomerReadDto?> GetByIdAsync(int id);
+
+    // إنشاء عميل جديد
     Task<DTOs.CustomerReadDto> CreateAsync(DTOs.CreateCustomerDto dto);
+
+    // تعديل بيانات عميل
     Task UpdateAsync(int id, DTOs.UpdateCustomerDto dto);
+
+    // حذف آمن — يتحقق من عدم وجود مستندات قبل الحذف
     Task DeleteAsync(int id);
+
+    // تفعيل العميل (IsActive = true)
+    Task ActivateAsync(int id);
+
+    // تعطيل العميل (IsActive = false)
+    Task DeactivateAsync(int id);
+
+    // ملف العميل الشامل — بيانات + ملخص مالي + آخر حركات
+    Task<DTOs.CustomerProfileDto> GetProfileAsync(int id);
+}
+
+/// <summary>
+/// خدمة إدارة الموردين (Business Logic)
+/// دائرة مستقلة بنفس مستوى ICustomerService
+/// </summary>
+public interface ISupplierService
+{
+    // جلب قائمة الموردين مع Filters و Pagination
+    Task<PagedResult<DTOs.SupplierReadDto>> GetAllAsync(DTOs.SupplierFilterDto filter);
+
+    // جلب مورد بال Id
+    Task<DTOs.SupplierReadDto?> GetByIdAsync(int id);
+
+    // إنشاء مورد جديد
+    Task<DTOs.SupplierReadDto> CreateAsync(DTOs.CreateSupplierDto dto);
+
+    // تعديل بيانات مورد
+    Task UpdateAsync(int id, DTOs.UpdateSupplierDto dto);
+
+    // حذف آمن — يتحقق من عدم وجود مستندات
+    Task DeleteAsync(int id);
+
+    // تفعيل المورد
+    Task ActivateAsync(int id);
+
+    // تعطيل المورد
+    Task DeactivateAsync(int id);
+
+    // ملف المورد الشامل
+    Task<DTOs.SupplierProfileDto> GetProfileAsync(int id);
 }
 
 /// <summary>
@@ -128,11 +178,32 @@ public interface ICashTransactionService
 /// </summary>
 public interface IDashboardService
 {
+    // النظام القديم (يحتفظ به للتوافقية حتى يتم نقله لواجهات أخرى)
     Task<DTOs.DashboardStatsDto> GetDailyStatsAsync();
     Task<DTOs.FinancialSummaryDto> GetFinancialSummaryAsync();
     Task<List<DTOs.TopProductDto>> GetTopSellingProductsAsync(int count = 5);
     Task<List<DTOs.DebtAlertDto>> GetDebtAlertsAsync();
+
+    // النظام الحديث
+    Task<DTOs.DashboardKpiDto> GetKpisAsync();
+    Task<List<DTOs.CustomerReadDto>> GetTopCustomersAsync(int count = 5);
+    Task<List<DTOs.ProductReadDto>> GetLowStockProductsAsync();
 }
+
+/// <summary>
+/// خدمة التقارير الشاملة (Business Logic)
+/// </summary>
+public interface IReportService
+{
+    // تقارير أعمار الديون
+    Task<List<DTOs.AgingReportRowDto>> GetCustomerAgingReportAsync(bool excludeZeroBalances = true);
+    Task<List<DTOs.AgingReportRowDto>> GetSupplierAgingReportAsync(bool excludeZeroBalances = true);
+    
+    // تقارير المبيعات والأرباح
+    Task<DTOs.SalesSummaryDto> GetSalesSummaryAsync(DateTime? from, DateTime? to);
+    Task<PagedResult<DTOs.InvoiceProfitDto>> GetInvoiceProfitabilityAsync(DTOs.PaginationQueryDto query, DateTime? from, DateTime? to);
+}
+
 /// <summary>
 /// خدمة إدارة الفروع (Business Logic)
 /// </summary>
@@ -286,16 +357,39 @@ public interface ISettlementService
 /// </summary>
 public interface IFinanceService
 {
-    // المقبوضات
+    // ===== المقبوضات من العميل =====
     Task<DTOs.ReceiptReadDto> CreateCustomerReceiptAsync(DTOs.CreateReceiptDto dto);
     Task AllocateCustomerReceiptAsync(DTOs.AllocateReceiptDto dto);
     
-    // المدفوعات للموردين
+    // ===== المدفوعات للمورد =====
     Task<DTOs.ReceiptReadDto> CreateSupplierPaymentAsync(DTOs.CreateReceiptDto dto);
     Task AllocateSupplierPaymentAsync(DTOs.AllocateReceiptDto dto);
 
-    // كشوفات وشاشات العميل
-    Task<List<DTOs.CustomerStatementDto>> GetCustomerStatementAsync(int customerId, DateTime? from, DateTime? to);
+    // ===== كشوفات وشاشات العميل =====
+
+    // كشف حساب العميل بالفترة مع Pagination
+    Task<DTOs.StatementPagedResult<DTOs.CustomerStatementDto>> GetCustomerStatementAsync(int customerId, DTOs.StatementQueryDto query);
+
+    // فواتير العميل المفتوحة (التي لم تُدفع بالكامل)
     Task<List<DTOs.InvoiceReadDto>> GetOpenCustomerInvoicesAsync(int customerId);
+
+    // مقبوضات العميل التي لم تُخصص
     Task<List<DTOs.ReceiptReadDto>> GetUnallocatedCustomerReceiptsAsync(int customerId);
+
+    // حساب الرصيد الحالي للعميل من مصادر النظام المالي (Receipts/Invoices)
+    Task<decimal> GetCustomerCurrentBalanceAsync(int customerId);
+
+    // ===== كشوفات وشاشات المورد =====
+
+    // كشف حساب المورد بالفترة مع Pagination
+    Task<DTOs.StatementPagedResult<DTOs.SupplierStatementDto>> GetSupplierStatementAsync(int supplierId, DTOs.StatementQueryDto query);
+
+    // فواتير المورد المفتوحة (لم تُدفع بالكامل)
+    Task<List<DTOs.InvoiceReadDto>> GetOpenSupplierInvoicesAsync(int supplierId);
+
+    // مدفوعات المورد التي لم تُخصص
+    Task<List<DTOs.ReceiptReadDto>> GetUnallocatedSupplierPaymentsAsync(int supplierId);
+
+    // حساب الرصيد الحالي للمورد
+    Task<decimal> GetSupplierCurrentBalanceAsync(int supplierId);
 }

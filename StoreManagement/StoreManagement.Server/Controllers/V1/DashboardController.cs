@@ -50,4 +50,29 @@ public class DashboardController : ControllerBase
         var result = await _dashboardService.GetDebtAlertsAsync();
         return Ok(ApiResponse<List<DebtAlertDto>>.SuccessResult(result));
     }
+
+    // ============================================================
+    // النظام الحديث (Modern Dashboard API)
+    // ============================================================
+
+    [HttpGet("kpis")]
+    public async Task<ActionResult<ApiResponse<DashboardKpiDto>>> GetKpis()
+    {
+        var result = await _dashboardService.GetKpisAsync();
+        return Ok(ApiResponse<DashboardKpiDto>.SuccessResult(result));
+    }
+
+    [HttpGet("top-customers")]
+    public async Task<ActionResult<ApiResponse<List<CustomerReadDto>>>> GetTopCustomers([FromQuery] int count = 5)
+    {
+        var result = await _dashboardService.GetTopCustomersAsync(count);
+        return Ok(ApiResponse<List<CustomerReadDto>>.SuccessResult(result));
+    }
+
+    [HttpGet("low-stock")]
+    public async Task<ActionResult<ApiResponse<List<ProductReadDto>>>> GetLowStock()
+    {
+        var result = await _dashboardService.GetLowStockProductsAsync();
+        return Ok(ApiResponse<List<ProductReadDto>>.SuccessResult(result));
+    }
 }

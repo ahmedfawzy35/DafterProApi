@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StoreManagement.Data;
 
@@ -11,9 +12,11 @@ using StoreManagement.Data;
 namespace StoreManagement.Data.Migrations
 {
     [DbContext(typeof(StoreDbContext))]
-    partial class StoreDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260403081801_AddPartnerFields")]
+    partial class AddPartnerFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1995,12 +1998,6 @@ namespace StoreManagement.Data.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
-                    b.Property<DateTime?>("StatusChangedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("StatusChangedBy")
-                        .HasColumnType("nvarchar(max)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("CompanyId");
@@ -2098,12 +2095,6 @@ namespace StoreManagement.Data.Migrations
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
-
-                    b.Property<DateTime?>("StatusChangedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("StatusChangedBy")
-                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -2301,9 +2292,6 @@ namespace StoreManagement.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("CostPriceAtSale")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("InvoiceId")
                         .HasColumnType("int");
