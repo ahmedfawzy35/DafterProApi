@@ -19,11 +19,13 @@ public class InvoicesController : ControllerBase
 {
     private readonly IInvoiceService _invoiceService;
     private readonly IAuditLogService _auditLogService;
+    private readonly IReturnService _returnService;
 
-    public InvoicesController(IInvoiceService invoiceService, IAuditLogService auditLogService)
+    public InvoicesController(IInvoiceService invoiceService, IAuditLogService auditLogService, IReturnService returnService)
     {
         _invoiceService = invoiceService;
         _auditLogService = auditLogService;
+        _returnService = returnService;
     }
 
     [HttpGet]
@@ -79,5 +81,34 @@ public class InvoicesController : ControllerBase
     {
         var result = await _auditLogService.GetAllAsync(query, entityName: "Invoice", entityId: id.ToString());
         return Ok(ApiResponse<PagedResult<AuditLogReadDto>>.SuccessResult(result));
+    }
+
+    [HttpPost("{invoiceId:int}/approve")]
+    [Authorize(Roles = "Admin,Manager")]
+    public async Task<ActionResult<ApiResponse<InvoiceReadDto>>> ApproveReturn(int invoiceId, [FromBody] ApproveReturnDto dto)
+    {
+        var result = await _returnService.ApproveManualReturnAsync(invoiceId, dto.Notes);
+        return Ok(ApiResponse<InvoiceReadDto>.SuccessResult(result, "تم اعتماد المرتجع الشاذ بنجاح."));
+    }
+
+    [HttpPost("{invoiceId:int}/reject")]
+    [Authorize(Roles = "Admin,Manager")]
+    public async Task<ActionResult<ApiResponse<object>>> RejectReturn(int invoiceId, [FromBody] RejectReturnDto dto)
+    {
+        await _returnService.RejectManualReturnAsync(invoiceId, dto.Reason);
+        return Ok(ApiResponse<object>.SuccessResult(null, "تم رفض المرتجع الشاذ بنجاح."));
+    }
+
+    [HttpGet("search-for-return")]
+    public async Task<ActionResult<ApiResponse<PagedResult<InvoiceReadDto>>>> SearchForReturn(
+        [FromQuery] int? customerId, 
+        [FromQuery] int? supplierId, 
+        [FromQuery] int? productId, 
+        [FromQuery] DateTime? from, 
+        [FromQuery] DateTime? to, 
+        [FromQuery] PaginationQueryDto query)
+    {
+        var result = await _returnService.SearchForOriginalInvoiceAsync(customerId, supplierId, productId, from, to, query);
+        return Ok(ApiResponse<PagedResult<InvoiceReadDto>>.SuccessResult(result));
     }
 }

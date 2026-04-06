@@ -154,6 +154,20 @@ public interface IInvoiceService
     Task DeleteAsync(int id);
     Task CancelAsync(int id);
 }
+
+/// <summary>
+/// خدمة إدارة المرتجعات (المرجعية واليدوية)
+/// </summary>
+public interface IReturnService
+{
+    Task<DTOs.InvoiceReadDto> CreateReferencedReturnAsync(DTOs.CreateInvoiceDto dto, Enums.InvoiceType returnType);
+    Task<DTOs.InvoiceReadDto> CreateManualReturnAsync(DTOs.CreateInvoiceDto dto, Enums.InvoiceType returnType);
+    Task<DTOs.InvoiceReadDto> ApproveManualReturnAsync(int invoiceId, string? notes);
+    Task RejectManualReturnAsync(int invoiceId, string? reason);
+    Task<Common.PagedResult<DTOs.InvoiceReadDto>> SearchForOriginalInvoiceAsync(
+        int? customerId, int? supplierId, int? productId,
+        DateTime? from, DateTime? to, DTOs.PaginationQueryDto query);
+}
 /// <summary>
 /// خدمة إدارة المعاملات النقدية (Business Logic)
 /// </summary>
@@ -373,14 +387,16 @@ public interface ISettlementService
 public interface IFinanceService
 {
     // ===== المقبوضات من العميل =====
-    Task<DTOs.ReceiptReadDto> CreateCustomerReceiptAsync(DTOs.CreateReceiptDto dto);
-    Task<DTOs.ReceiptReadDto> CreateCustomerRefundAsync(DTOs.CreateReceiptDto dto);
+    Task<DTOs.ReceiptReadDto> CreateCustomerReceiptAsync(DTOs.CreateReceiptDto dto, int? explicitBranchId = null);
+    Task<DTOs.ReceiptReadDto> CreateCustomerRefundAsync(DTOs.CreateReceiptDto dto, int? explicitBranchId = null);
     Task AllocateCustomerReceiptAsync(DTOs.AllocateReceiptDto dto);
+    Task AllocateDirectToInvoiceAsync(int receiptId, int invoiceId, decimal amount);
     
     // ===== المدفوعات للمورد =====
-    Task<DTOs.ReceiptReadDto> CreateSupplierPaymentAsync(DTOs.CreateReceiptDto dto);
-    Task<DTOs.ReceiptReadDto> CreateSupplierRefundAsync(DTOs.CreateReceiptDto dto);
+    Task<DTOs.ReceiptReadDto> CreateSupplierPaymentAsync(DTOs.CreateReceiptDto dto, int? explicitBranchId = null);
+    Task<DTOs.ReceiptReadDto> CreateSupplierRefundAsync(DTOs.CreateReceiptDto dto, int? explicitBranchId = null);
     Task AllocateSupplierPaymentAsync(DTOs.AllocateReceiptDto dto);
+    Task AllocateDirectToSupplierInvoiceAsync(int paymentId, int invoiceId, decimal amount);
 
     // ===== كشوفات وشاشات العميل =====
 

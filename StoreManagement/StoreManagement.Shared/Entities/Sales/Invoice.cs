@@ -22,6 +22,9 @@ public class Invoice : BaseEntity, IBranchEntity
     // حالة السداد بالاعتماد على المدفوعات المخصصة
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
 
+    // هل الفاتورة مرتجع؟
+    public bool IsReturn => Type == InvoiceType.SalesReturn || Type == InvoiceType.PurchaseReturn;
+
     // معرف العميل (للمبيعات)
     public int? CustomerId { get; set; }
 
@@ -70,6 +73,18 @@ public class Invoice : BaseEntity, IBranchEntity
     // الفاتورة الأصلية المرتبطة بها هذه الفاتورة (للمرتجعات)
     public Invoice? OriginalInvoice { get; set; }
 
+    // ===== حقول المرتجعات =====
+    public ReturnMode? ReturnMode { get; set; }
+    public string? ReturnReason { get; set; }
+
+    // ===== حقول Approval Workflow ======
+    public bool RequiresApproval { get; set; } = false;
+    public bool IsApproved { get; set; } = false;
+    public int? ApprovedByUserId { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public string? ApprovalNotes { get; set; }
+    public string? RejectionReason { get; set; }
+
     // عناصر الفاتورة التفصيلية
     public ICollection<InvoiceItem> Items { get; set; } = [];
 
@@ -107,6 +122,10 @@ public class InvoiceItem
 
     // الإجمالي الفرعي
     public decimal Subtotal => (decimal)Quantity * UnitPrice;
+
+    // ===== ربط سطر المرتجع بالسطر الأصلي =====
+    public int? OriginalInvoiceItemId { get; set; }
+    public InvoiceItem? OriginalInvoiceItem { get; set; }
 
     // ===== نظام حساب الأرباح =====
 

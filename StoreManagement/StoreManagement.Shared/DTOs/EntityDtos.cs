@@ -564,6 +564,8 @@ public class CreateInvoiceDto
     public decimal Paid { get; set; }
     public bool IsInstallment { get; set; }
     public string? Notes { get; set; }
+    public int? ReturnMode { get; set; }
+    public string? ReturnReason { get; set; }
     public List<CreateInvoiceItemDto> Items { get; set; } = [];
 }
 
@@ -572,6 +574,7 @@ public class CreateInvoiceItemDto
     public int ProductId { get; set; }
     public double Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public int? OriginalInvoiceItemId { get; set; }
 }
 
 public class InvoiceReadDto
@@ -592,16 +595,32 @@ public class InvoiceReadDto
     public string Status { get; set; } = string.Empty;
     public string PaymentStatus { get; set; } = string.Empty;
     public bool IsInstallment { get; set; }
+    public string? ReturnMode { get; set; }
+    public string? ReturnReason { get; set; }
+    public bool RequiresApproval { get; set; }
+    public bool IsApproved { get; set; }
     public List<InvoiceItemReadDto> Items { get; set; } = [];
 }
 
 public class InvoiceItemReadDto
 {
+    public int Id { get; set; }
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public double Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal Subtotal { get; set; }
+    public int? OriginalInvoiceItemId { get; set; }
+}
+
+public class ApproveReturnDto
+{
+    public string? Notes { get; set; }
+}
+
+public class RejectReturnDto
+{
+    public string Reason { get; set; } = string.Empty;
 }
 
 // ===== DTOs خاصة بالموظف =====

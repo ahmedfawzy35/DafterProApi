@@ -32,9 +32,9 @@ public class FinanceService : IFinanceService
     // Customer Receipts
     // ==========================================
 
-    public async Task<ReceiptReadDto> CreateCustomerReceiptAsync(CreateReceiptDto dto)
+    public async Task<ReceiptReadDto> CreateCustomerReceiptAsync(CreateReceiptDto dto, int? explicitBranchId = null)
     {
-        var branchId = _currentUser.BranchId ?? 0;
+        var branchId = explicitBranchId ?? _currentUser.BranchId ?? 0;
         ValidateBranch(branchId);
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -90,9 +90,9 @@ public class FinanceService : IFinanceService
         }
     }
 
-    public async Task<ReceiptReadDto> CreateCustomerRefundAsync(CreateReceiptDto dto)
+    public async Task<ReceiptReadDto> CreateCustomerRefundAsync(CreateReceiptDto dto, int? explicitBranchId = null)
     {
-        var branchId = _currentUser.BranchId ?? 0;
+        var branchId = explicitBranchId ?? _currentUser.BranchId ?? 0;
         ValidateBranch(branchId);
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -220,13 +220,51 @@ public class FinanceService : IFinanceService
         }
     }
 
+    public async Task AllocateDirectToInvoiceAsync(int receiptId, int invoiceId, decimal amount)
+    {
+        await using var tx = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var receipt = await _context.CustomerReceipts
+                .Include(r => r.Allocations)
+                .FirstOrDefaultAsync(r => r.Id == receiptId)
+                ?? throw new KeyNotFoundException("سند القبض غير موجود");
+
+            var invoice = await _context.Invoices
+                .FirstOrDefaultAsync(i => i.Id == invoiceId)
+                ?? throw new KeyNotFoundException($"الفاتورة {invoiceId} غير موجودة");
+
+            if (invoice.Status != InvoiceStatus.Confirmed)
+                throw new InvalidOperationException("لا يمكن تخصيص لفاتورة غير مؤكدة.");
+            if (amount > invoice.RemainingAmount)
+                throw new InvalidOperationException($"المبلغ ({amount}) أكبر من المتبقي ({invoice.RemainingAmount}).");
+            if (amount > receipt.UnallocatedAmount)
+                throw new InvalidOperationException("المبلغ يتجاوز غير المخصص في السند.");
+            if (invoice.CustomerId != receipt.CustomerId)
+                throw new InvalidOperationException("الفاتورة لا تخص نفس العميل.");
+
+            receipt.Allocations.Add(new CustomerReceiptAllocation { InvoiceId = invoiceId, Amount = amount });
+            receipt.UnallocatedAmount -= amount;
+            invoice.AllocatedAmount += amount;
+            invoice.PaymentStatus = invoice.RemainingAmount <= 0 ? PaymentStatus.Paid : PaymentStatus.PartiallyPaid;
+
+            await _context.SaveChangesAsync();
+            await tx.CommitAsync();
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
+    }
+
     // ==========================================
     // Supplier Payments
     // ==========================================
 
-    public async Task<ReceiptReadDto> CreateSupplierPaymentAsync(CreateReceiptDto dto)
+    public async Task<ReceiptReadDto> CreateSupplierPaymentAsync(CreateReceiptDto dto, int? explicitBranchId = null)
     {
-        var branchId = _currentUser.BranchId ?? 0;
+        var branchId = explicitBranchId ?? _currentUser.BranchId ?? 0;
         ValidateBranch(branchId);
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -282,9 +320,9 @@ public class FinanceService : IFinanceService
         }
     }
 
-    public async Task<ReceiptReadDto> CreateSupplierRefundAsync(CreateReceiptDto dto)
+    public async Task<ReceiptReadDto> CreateSupplierRefundAsync(CreateReceiptDto dto, int? explicitBranchId = null)
     {
-        var branchId = _currentUser.BranchId ?? 0;
+        var branchId = explicitBranchId ?? _currentUser.BranchId ?? 0;
         ValidateBranch(branchId);
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -409,6 +447,44 @@ public class FinanceService : IFinanceService
             invoice.AllocatedAmount += allocationAmount;
 
             invoice.PaymentStatus = invoice.RemainingAmount <= 0 ? PaymentStatus.Paid : PaymentStatus.PartiallyPaid;
+        }
+    }
+
+    public async Task AllocateDirectToSupplierInvoiceAsync(int paymentId, int invoiceId, decimal amount)
+    {
+        await using var tx = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var payment = await _context.SupplierPayments
+                .Include(p => p.Allocations)
+                .FirstOrDefaultAsync(p => p.Id == paymentId)
+                ?? throw new KeyNotFoundException("سند الصرف غير موجود");
+
+            var invoice = await _context.Invoices
+                .FirstOrDefaultAsync(i => i.Id == invoiceId)
+                ?? throw new KeyNotFoundException($"الفاتورة {invoiceId} غير موجودة");
+
+            if (invoice.Status != InvoiceStatus.Confirmed)
+                throw new InvalidOperationException("لا يمكن تخصيص لفاتورة غير مؤكدة.");
+            if (amount > invoice.RemainingAmount)
+                throw new InvalidOperationException($"المبلغ ({amount}) أكبر من المتبقي ({invoice.RemainingAmount}).");
+            if (amount > payment.UnallocatedAmount)
+                throw new InvalidOperationException("المبلغ يتجاوز غير المخصص في السند.");
+            if (invoice.SupplierId != payment.SupplierId)
+                throw new InvalidOperationException("الفاتورة لا تخص نفس المورد.");
+
+            payment.Allocations.Add(new SupplierPaymentAllocation { InvoiceId = invoiceId, Amount = amount });
+            payment.UnallocatedAmount -= amount;
+            invoice.AllocatedAmount += amount;
+            invoice.PaymentStatus = invoice.RemainingAmount <= 0 ? PaymentStatus.Paid : PaymentStatus.PartiallyPaid;
+
+            await _context.SaveChangesAsync();
+            await tx.CommitAsync();
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
         }
     }
 

@@ -90,7 +90,18 @@ public enum InvoiceStatus
 {
     Draft = 1,       // مسودة (يمكن التعديل والحذف، لا تؤثر على المخزن)
     Confirmed = 2,   // مؤكدة (تُنفذ حركات المخزن، لا يمكن حذفها مباشرة)
-    Cancelled = 3    // ملغية (عن طريق المرتجع فقط)
+    Cancelled = 3,   // ملغية (عن طريق المرتجع فقط)
+    PendingApproval = 4, // للمرتجع اليدوي قبل الاعتماد
+    Rejected = 5     // للمرتجع اليدوي المرفوض
+}
+
+/// <summary>
+/// نوع المرتجع: مرتبط بفاتورة أصلية أو يدوي بدون فاتورة
+/// </summary>
+public enum ReturnMode
+{
+    Referenced = 1,  // مرتبط بفاتورة أصلية (يعتمد OriginalInvoiceId)
+    Manual = 2       // يدوي بدون فاتورة (يحتاج ReturnReason + اعتماد مدير)
 }
 
 /// <summary>

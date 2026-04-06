@@ -190,6 +190,7 @@ builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();  // خدمة الموردين المستقلة الجديدة
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+builder.Services.AddScoped<IReturnService, ReturnService>();
 builder.Services.AddScoped<ICashTransactionService, CashTransactionService>();
 builder.Services.AddScoped<IFinanceService, FinanceService>();
 builder.Services.AddScoped<IShiftService, ShiftService>();

@@ -190,6 +190,14 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         builder.Entity<Invoice>().HasIndex(i => i.CompanyId);
         builder.Entity<Invoice>().HasIndex(i => new { i.CompanyId, i.Date });
 
+        builder.Entity<InvoiceItem>()
+            .HasOne(i => i.OriginalInvoiceItem)
+            .WithMany()
+            .HasForeignKey(i => i.OriginalInvoiceItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<InvoiceItem>().HasIndex(i => i.OriginalInvoiceItemId);
+
         builder.Entity<StockTransaction>().HasIndex(st => new { st.ReferenceType, st.ReferenceId });
 
         builder.Entity<Employee>().HasIndex(e => e.CompanyId);

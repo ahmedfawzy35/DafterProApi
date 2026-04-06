@@ -26,6 +26,7 @@ public class InvoiceService : IInvoiceService
     private readonly IInventoryService _inventoryService;
     private readonly IProductService _productService;
     private readonly IFinanceService _financeService;
+    private readonly IReturnService _returnService;
 
     public InvoiceService(
         StoreDbContext context,
@@ -33,7 +34,8 @@ public class InvoiceService : IInvoiceService
         IOutboxService outboxService,
         IInventoryService inventoryService,
         IProductService productService,
-        IFinanceService financeService)
+        IFinanceService financeService,
+        IReturnService returnService)
     {
         _context = context;
         _currentUser = currentUser;
@@ -41,6 +43,7 @@ public class InvoiceService : IInvoiceService
         _inventoryService = inventoryService;
         _productService = productService;
         _financeService = financeService;
+        _returnService = returnService;
     }
 
     public async Task<PagedResult<InvoiceReadDto>> GetAllAsync(
@@ -126,12 +129,29 @@ public class InvoiceService : IInvoiceService
 
     public async Task<InvoiceReadDto> CreateAsync(CreateInvoiceDto dto)
     {
+        var type = (InvoiceType)dto.InvoiceType;
+        bool isReturn = type is InvoiceType.SalesReturn or InvoiceType.PurchaseReturn;
+
+        if (isReturn)
+        {
+            if (dto.ReturnMode == null)
+                throw new InvalidOperationException("ReturnMode مطلوب للمرتجع (1=مرجعي، 2=يدوي).");
+
+            return (ReturnMode)dto.ReturnMode.Value == ReturnMode.Referenced
+                ? await _returnService.CreateReferencedReturnAsync(dto, type)
+                : await _returnService.CreateManualReturnAsync(dto, type);
+        }
+
+        return await CreateSaleOrPurchaseInternalAsync(dto, type);
+    }
+
+    private async Task<InvoiceReadDto> CreateSaleOrPurchaseInternalAsync(CreateInvoiceDto dto, InvoiceType invoiceTypeEnum)
+    {
         var company = await _context.Companies
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(c => c.Id == _currentUser.CompanyId)
             ?? throw new InvalidOperationException("الشركة غير موجودة");
 
-        var invoiceTypeEnum = (InvoiceType)dto.InvoiceType;
         var invoiceStatus = (InvoiceStatus)(dto.Status ?? (int)InvoiceStatus.Confirmed);
 
         if (invoiceStatus == InvoiceStatus.Draft && dto.Paid > 0)
@@ -139,46 +159,7 @@ public class InvoiceService : IInvoiceService
             throw new InvalidOperationException("لا يمكن تسجيل دفعة مالية (Paid) لفاتورة مسودة (Draft).");
         }
 
-        // Return Lineage Validation
-        if (invoiceTypeEnum == InvoiceType.SalesReturn || invoiceTypeEnum == InvoiceType.PurchaseReturn)
-        {
-            if (dto.OriginalInvoiceId == null || dto.OriginalInvoiceId <= 0)
-                throw new InvalidOperationException("الفاتورة المرتجعة يجب أن ترتبط بفاتورة أصلية (OriginalInvoiceId).");
 
-            var originalInvoice = await _context.Invoices
-                .Include(i => i.Items)
-                .FirstOrDefaultAsync(i => i.Id == dto.OriginalInvoiceId && i.CompanyId == _currentUser.CompanyId);
-
-            if (originalInvoice == null)
-                throw new InvalidOperationException("الفاتورة الأصلية غير موجودة أو لا تتبع مساحتك.");
-            
-            if (originalInvoice.Status != InvoiceStatus.Confirmed)
-                throw new InvalidOperationException("لا يمكن عمل مرتجع لفاتورة غير مؤكدة.");
-
-            if ((invoiceTypeEnum == InvoiceType.SalesReturn && originalInvoice.Type != InvoiceType.Sale) ||
-                (invoiceTypeEnum == InvoiceType.PurchaseReturn && originalInvoice.Type != InvoiceType.Purchase))
-                throw new InvalidOperationException("نوع المرتجع لا يتطابق مع نوع الفاتورة الأصلية.");
-
-            // Validate Quantities
-            var previousReturns = await _context.Invoices
-                .Include(i => i.Items)
-                .Where(i => i.OriginalInvoiceId == dto.OriginalInvoiceId && i.Status == InvoiceStatus.Confirmed && i.Id != dto.OriginalInvoiceId)
-                .ToListAsync();
-
-            foreach (var itemDto in dto.Items)
-            {
-                var originalItem = originalInvoice.Items.FirstOrDefault(i => i.ProductId == itemDto.ProductId)
-                    ?? throw new InvalidOperationException($"المنتج رقم {itemDto.ProductId} لم يكن موجوداً في الفاتورة الأصلية.");
-
-                var alreadyReturnedQty = previousReturns
-                    .SelectMany(i => i.Items)
-                    .Where(i => i.ProductId == itemDto.ProductId)
-                    .Sum(i => i.Quantity);
-
-                if (alreadyReturnedQty + itemDto.Quantity > originalItem.Quantity)
-                    throw new InvalidOperationException($"الكمية المرتجعة للمنتج {itemDto.ProductId} تتجاوز الكمية الأصلية المتبقية للاسترجاع (المسموح: {originalItem.Quantity - alreadyReturnedQty}).");
-            }
-        }
 
         var branchId = dto.BranchId > 0 ? dto.BranchId : (_currentUser.BranchId ?? throw new ArgumentException("معرف الفرع ضروري"));
 
@@ -201,8 +182,6 @@ public class InvoiceService : IInvoiceService
             decimal totalValue = 0;
             var isSale = invoiceTypeEnum == InvoiceType.Sale;
             var isPurchase = invoiceTypeEnum == InvoiceType.Purchase;
-            var isSalesReturn = invoiceTypeEnum == InvoiceType.SalesReturn;
-            var isPurchaseReturn = invoiceTypeEnum == InvoiceType.PurchaseReturn;
 
             foreach (var itemDto in dto.Items)
             {
@@ -287,26 +266,18 @@ public class InvoiceService : IInvoiceService
                     Date = invoice.Date,
                     Method = PaymentMethod.Cash,
                     Notes = $"معاملة مالية مع الفاتورة رقم {invoice.Id}",
-                    AutoAllocate = true
+                    AutoAllocate = false
                 };
 
                 if (isSale)
                 {
-                    await _financeService.CreateCustomerReceiptAsync(receiptDto);
+                    var receipt = await _financeService.CreateCustomerReceiptAsync(receiptDto, explicitBranchId: invoice.BranchId);
+                    await _financeService.AllocateDirectToInvoiceAsync(receipt.Id, invoice.Id, effectivePaid);
                 }
                 else if (isPurchase)
                 {
-                    await _financeService.CreateSupplierPaymentAsync(receiptDto);
-                }
-                else if (isSalesReturn)
-                {
-                    receiptDto.AutoAllocate = false; // المرتجع لا يُخصص تلقائياً — تسوية مستقلة
-                    await _financeService.CreateCustomerRefundAsync(receiptDto);
-                }
-                else if (isPurchaseReturn)
-                {
-                    receiptDto.AutoAllocate = false;
-                    await _financeService.CreateSupplierRefundAsync(receiptDto);
+                    var payment = await _financeService.CreateSupplierPaymentAsync(receiptDto, explicitBranchId: invoice.BranchId);
+                    await _financeService.AllocateDirectToSupplierInvoiceAsync(payment.Id, invoice.Id, effectivePaid);
                 }
             }
 
