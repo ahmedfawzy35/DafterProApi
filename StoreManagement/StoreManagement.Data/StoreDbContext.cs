@@ -46,6 +46,7 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     public DbSet<ProductCostHistory> ProductCostHistories => Set<ProductCostHistory>();
 
     // ===== الفواتير والمخزون =====
+    public DbSet<BranchProductStock> BranchProductStocks => Set<BranchProductStock>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
     public DbSet<StockTransaction> StockTransactions => Set<StockTransaction>();
@@ -186,6 +187,34 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
             .WithMany(pc => pc.SubCategories)
             .HasForeignKey(pc => pc.ParentCategoryId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // ===== إعداد هيكل المخزون الفرعي (BranchProductStock) =====
+        
+        // قيد فريد يمنع تكرار المنتج في نفس الفرع لأكثر من سجل
+        builder.Entity<BranchProductStock>()
+            .HasIndex(bps => new { bps.ProductId, bps.BranchId })
+            .IsUnique();
+
+        // فهارس إضافية للبحث
+        builder.Entity<BranchProductStock>().HasIndex(bps => bps.BranchId);
+        builder.Entity<BranchProductStock>().HasIndex(bps => bps.ProductId);
+
+        // إعداد الـ Query Filter يدوياً للشركة وعزلها
+        builder.Entity<BranchProductStock>()
+            .HasQueryFilter(bps =>
+                (!_currentUserService.IsPlatformUser && bps.CompanyId == _currentUserService.CompanyId)
+                ||
+                (_currentUserService.IsPlatformUser && (_currentUserService.ScopedCompanyId == null || bps.CompanyId == _currentUserService.ScopedCompanyId))
+            );
+
+        // إعداد Concurrency Token
+        builder.Entity<BranchProductStock>()
+            .Property(bps => bps.RowVersion)
+            .IsRowVersion();
+
+        // منع القيم السالبة في حقل ReservedQuantity على مستوى قاعدة البيانات
+        builder.Entity<BranchProductStock>()
+            .ToTable(t => t.HasCheckConstraint("CK_BranchProductStock_ReservedQuantity", "[ReservedQuantity] >= 0"));
 
         builder.Entity<Invoice>().HasIndex(i => i.CompanyId);
         builder.Entity<Invoice>().HasIndex(i => new { i.CompanyId, i.Date });

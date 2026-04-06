@@ -203,6 +203,9 @@ public interface IDashboardService
     Task<DTOs.DashboardKpiDto> GetKpisAsync();
     Task<List<DTOs.CustomerReadDto>> GetTopCustomersAsync(int count = 5);
     Task<List<DTOs.ProductReadDto>> GetLowStockProductsAsync();
+
+    // لوحة تحكم الفرع (Branch KPIs)
+    Task<DTOs.BranchDashboardKpiDto> GetBranchKpisAsync(int? branchId = null);
 }
 
 /// <summary>
@@ -216,7 +219,12 @@ public interface IReportService
     
     // تقارير المبيعات والأرباح
     Task<DTOs.SalesSummaryDto> GetSalesSummaryAsync(DateTime? from, DateTime? to);
-    Task<PagedResult<DTOs.InvoiceProfitDto>> GetInvoiceProfitabilityAsync(DTOs.PaginationQueryDto query, DateTime? from, DateTime? to);
+    Task<Common.PagedResult<DTOs.InvoiceProfitDto>> GetInvoiceProfitabilityAsync(DTOs.PaginationQueryDto query, DateTime? from, DateTime? to);
+
+    // ===== تقارير المخزون والفروع =====
+    Task<Common.PagedResult<DTOs.StockPerBranchReportDto>> GetStockPerBranchReportAsync(DTOs.PaginationQueryDto query, int? branchId, int? productId);
+    Task<Common.PagedResult<DTOs.BranchInventoryMovementReportDto>> GetBranchInventoryMovementsReportAsync(DTOs.PaginationQueryDto query, int? branchId, int? productId, DateTime? from, DateTime? to);
+    Task<DTOs.ProductStockDistributionDto> GetProductStockDistributionAsync(int productId);
 }
 
 /// <summary>
@@ -447,7 +455,7 @@ public interface IShiftService
 /// </summary>
 public interface IAlertService
 {
-    Task<PagedResult<DTOs.LowStockAlertDto>> GetLowStockAlertsAsync(DTOs.PaginationQueryDto query);
+    Task<PagedResult<DTOs.LowStockAlertDto>> GetLowStockAlertsAsync(DTOs.PaginationQueryDto query, int? branchId = null);
     Task<PagedResult<DTOs.OverdueCustomerAlertDto>> GetOverdueInvoicesAlertsAsync(DTOs.PaginationQueryDto query, int dayThreshold = 30);
     Task<PagedResult<DTOs.HighDebtCustomerAlertDto>> GetHighDebtCustomersAlertsAsync(DTOs.PaginationQueryDto query);
 }

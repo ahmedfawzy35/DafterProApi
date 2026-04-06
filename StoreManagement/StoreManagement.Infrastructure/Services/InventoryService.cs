@@ -12,11 +12,13 @@ public class InventoryService : IInventoryService
 {
     private readonly StoreDbContext _context;
     private readonly ICurrentUserService _currentUser;
+    private readonly IBranchInventoryService _branchInventory;
 
-    public InventoryService(StoreDbContext context, ICurrentUserService currentUser)
+    public InventoryService(StoreDbContext context, ICurrentUserService currentUser, IBranchInventoryService branchInventory)
     {
         _context = context;
         _currentUser = currentUser;
+        _branchInventory = branchInventory;
     }
 
     // =========================================================================
@@ -105,10 +107,16 @@ public class InventoryService : IInventoryService
                 throw new KeyNotFoundException($"المنتج رقم {item.ProductId} غير موجود.");
 
             // سياسة strict: لا يُسمح بمخزون سالب
-            if (item.Quantity < 0 && product.StockQuantity + item.Quantity < 0)
-                throw new InvalidOperationException(
-                    $"التسوية ستؤدي إلى مخزون سالب للمنتج '{product.Name}'. " +
-                    $"الرصيد الحالي: {product.StockQuantity}، الكمية المخصومة: {Math.Abs(item.Quantity)}.");
+            if (item.Quantity < 0)
+            {
+                var availableQty = await _branchInventory.GetAvailableQtyAsync(item.ProductId, dto.BranchId);
+                if (availableQty + item.Quantity < 0)
+                {
+                    throw new InvalidOperationException(
+                        $"التسوية ستؤدي إلى مخزون سالب للمنتج '{product.Name}' في هذا الفرع. " +
+                        $"الرصيد الحالي للفرع: {availableQty}، الكمية المخصومة: {Math.Abs(item.Quantity)}.");
+                }
+            }
         }
 
         // --- Execution inside DB Transaction ---
@@ -143,12 +151,15 @@ public class InventoryService : IInventoryService
                 var isAdding = itemDto.Quantity > 0;
                 var absQty = Math.Abs(itemDto.Quantity);
 
+                // جلب رصيد الفرع قبل العملية
+                var beforeQty = await _branchInventory.GetAvailableQtyAsync(itemDto.ProductId, dto.BranchId);
+
                 var stockTx = new StockTransaction
                 {
                     ProductId = itemDto.ProductId,
                     BranchId = dto.BranchId,
                     Quantity = absQty,
-                    BeforeQuantity = product.StockQuantity,
+                    BeforeQuantity = beforeQty,
                     MovementType = isAdding ? StockMovementType.In : StockMovementType.Out,
                     ReferenceType = StockReferenceType.Adjustment,
                     ReferenceId = adjustment.Id,
@@ -159,8 +170,13 @@ public class InventoryService : IInventoryService
                     UserId = (int)_currentUser.UserId!
                 };
 
-                product.StockQuantity += itemDto.Quantity;
-                stockTx.AfterQuantity = product.StockQuantity;
+                // تعديل الرصيد عبر الخدمة المتخصصة
+                if (isAdding)
+                    await _branchInventory.IncreaseStockAsync(itemDto.ProductId, dto.BranchId, absQty);
+                else
+                    await _branchInventory.DecreaseStockAsync(itemDto.ProductId, dto.BranchId, absQty, allowNegative: false);
+
+                stockTx.AfterQuantity = beforeQty + itemDto.Quantity;
 
                 _context.StockTransactions.Add(stockTx);
             }
@@ -280,9 +296,10 @@ public class InventoryService : IInventoryService
                 stockErrors.Add($"المنتج رقم {item.ProductId} غير موجود.");
                 continue;
             }
-            if (product.StockQuantity < item.Quantity)
+            var availableQty = await _branchInventory.GetAvailableQtyAsync(item.ProductId, dto.FromBranchId);
+            if (availableQty < item.Quantity)
                 stockErrors.Add(
-                    $"المنتج '{product.Name}': الكمية المطلوبة ({item.Quantity}) تتجاوز الرصيد المتاح ({product.StockQuantity}).");
+                    $"المنتج '{product.Name}': الكمية المطلوبة ({item.Quantity}) تتجاوز الرصيد المتاح بالفرع المرسِل ({availableQty}).");
         }
 
         if (stockErrors.Count > 0)
@@ -316,13 +333,20 @@ public class InventoryService : IInventoryService
                     Quantity = itemDto.Quantity
                 });
 
+                var beforeFromQty = await _branchInventory.GetAvailableQtyAsync(itemDto.ProductId, dto.FromBranchId);
+                var beforeToQty = await _branchInventory.GetAvailableQtyAsync(itemDto.ProductId, dto.ToBranchId);
+
+                // إتمام النقل الفعلي بين الفروع عبر الـ Service لضمان كل الـ guards
+                await _branchInventory.DecreaseStockAsync(itemDto.ProductId, dto.FromBranchId, itemDto.Quantity, allowNegative: false);
+                await _branchInventory.IncreaseStockAsync(itemDto.ProductId, dto.ToBranchId, itemDto.Quantity);
+
                 // حركة الخروج من الفرع المرسِل
                 var outTx = new StockTransaction
                 {
                     ProductId = itemDto.ProductId,
                     BranchId = dto.FromBranchId,
                     Quantity = itemDto.Quantity,
-                    BeforeQuantity = product.StockQuantity,
+                    BeforeQuantity = beforeFromQty,
                     MovementType = StockMovementType.TransferOut,
                     ReferenceType = StockReferenceType.Transfer,
                     ReferenceId = transfer.Id,
@@ -331,8 +355,7 @@ public class InventoryService : IInventoryService
                     CompanyId = (int)_currentUser.CompanyId!,
                     UserId = (int)_currentUser.UserId!
                 };
-                product.StockQuantity -= itemDto.Quantity;
-                outTx.AfterQuantity = product.StockQuantity;
+                outTx.AfterQuantity = beforeFromQty - itemDto.Quantity;
                 _context.StockTransactions.Add(outTx);
 
                 // حركة الدخول إلى الفرع المستقبِل
@@ -341,7 +364,7 @@ public class InventoryService : IInventoryService
                     ProductId = itemDto.ProductId,
                     BranchId = dto.ToBranchId,
                     Quantity = itemDto.Quantity,
-                    BeforeQuantity = product.StockQuantity,
+                    BeforeQuantity = beforeToQty,
                     MovementType = StockMovementType.TransferIn,
                     ReferenceType = StockReferenceType.Transfer,
                     ReferenceId = transfer.Id,
@@ -350,8 +373,7 @@ public class InventoryService : IInventoryService
                     CompanyId = (int)_currentUser.CompanyId!,
                     UserId = (int)_currentUser.UserId!
                 };
-                product.StockQuantity += itemDto.Quantity; // Net يظل نفسه (Global stock)
-                inTx.AfterQuantity = product.StockQuantity;
+                inTx.AfterQuantity = beforeToQty + itemDto.Quantity;
                 _context.StockTransactions.Add(inTx);
             }
 
@@ -448,12 +470,14 @@ public class InventoryService : IInventoryService
         var product = await _context.Products.FindAsync(productId)
             ?? throw new KeyNotFoundException($"المنتج رقم {productId} غير موجود.");
 
+        var beforeQty = await _branchInventory.GetAvailableQtyAsync(productId, branchId);
+
         var transaction = new StockTransaction
         {
             ProductId = productId,
             BranchId = branchId,
             Quantity = quantity,
-            BeforeQuantity = product.StockQuantity,
+            BeforeQuantity = beforeQty,
             MovementType = StockMovementType.In,
             ReferenceType = StockReferenceType.InitialStock,
             ReasonType = StockAdjustmentReason.ManualCorrection,
@@ -463,8 +487,8 @@ public class InventoryService : IInventoryService
             UserId = (int)_currentUser.UserId!
         };
 
-        product.StockQuantity += quantity;
-        transaction.AfterQuantity = product.StockQuantity;
+        await _branchInventory.IncreaseStockAsync(productId, branchId, quantity);
+        transaction.AfterQuantity = beforeQty + quantity;
 
         _context.StockTransactions.Add(transaction);
         await _context.SaveChangesAsync();
@@ -493,16 +517,18 @@ public class InventoryService : IInventoryService
 
         var isDeducting = invoiceType == InvoiceType.Sale || invoiceType == InvoiceType.PurchaseReturn;
 
-        if (isDeducting && product.StockQuantity - quantity < 0)
+        var availableQty = await _branchInventory.GetAvailableQtyAsync(productId, branchId);
+
+        if (isDeducting && availableQty - quantity < 0)
             throw new InvalidOperationException(
-                $"الكمية المتاحة للمنتج '{product.Name}' غير كافية ({product.StockQuantity}).");
+                $"الكمية المتاحة للمنتج '{product.Name}' في الفرع الحالي غير كافية ({availableQty}).");
 
         var transaction = new StockTransaction
         {
             ProductId = productId,
             BranchId = branchId,
             Quantity = quantity,
-            BeforeQuantity = product.StockQuantity,
+            BeforeQuantity = availableQty,
             MovementType = isDeducting ? StockMovementType.Out : StockMovementType.In,
             ReferenceType = referenceType,
             ReferenceId = invoiceId,
@@ -514,10 +540,12 @@ public class InventoryService : IInventoryService
             UserId = (int)_currentUser.UserId!
         };
 
-        if (isDeducting) product.StockQuantity -= quantity;
-        else product.StockQuantity += quantity;
+        if (isDeducting)
+            await _branchInventory.DecreaseStockAsync(productId, branchId, quantity, allowNegative: false);
+        else
+            await _branchInventory.IncreaseStockAsync(productId, branchId, quantity);
 
-        transaction.AfterQuantity = product.StockQuantity;
+        transaction.AfterQuantity = isDeducting ? availableQty - quantity : availableQty + quantity;
 
         _context.StockTransactions.Add(transaction);
         await _context.SaveChangesAsync();
@@ -548,16 +576,18 @@ public class InventoryService : IInventoryService
         var originalDeducted = originalInvoiceType == InvoiceType.Sale || originalInvoiceType == InvoiceType.PurchaseReturn;
         var isDeductingNow = !originalDeducted;
 
-        if (isDeductingNow && product.StockQuantity - quantity < 0)
+        var availableQty = await _branchInventory.GetAvailableQtyAsync(productId, branchId);
+
+        if (isDeductingNow && availableQty - quantity < 0)
             throw new InvalidOperationException(
-                $"الكمية المتاحة للمنتج '{product.Name}' غير كافية ({product.StockQuantity}) لإتمام الإلغاء.");
+                $"الكمية المتاحة للمنتج '{product.Name}' بالفرع الحالي غير كافية ({availableQty}) لإتمام الإلغاء.");
 
         var transaction = new StockTransaction
         {
             ProductId = productId,
             BranchId = branchId,
             Quantity = quantity,
-            BeforeQuantity = product.StockQuantity,
+            BeforeQuantity = availableQty,
             MovementType = isDeductingNow ? StockMovementType.Out : StockMovementType.In,
             ReferenceType = referenceType,
             ReferenceId = invoiceId,
@@ -569,10 +599,12 @@ public class InventoryService : IInventoryService
             UserId = (int)_currentUser.UserId!
         };
 
-        if (isDeductingNow) product.StockQuantity -= quantity;
-        else product.StockQuantity += quantity;
+        if (isDeductingNow)
+            await _branchInventory.DecreaseStockAsync(productId, branchId, quantity, allowNegative: false);
+        else
+            await _branchInventory.IncreaseStockAsync(productId, branchId, quantity);
 
-        transaction.AfterQuantity = product.StockQuantity;
+        transaction.AfterQuantity = isDeductingNow ? availableQty - quantity : availableQty + quantity;
 
         _context.StockTransactions.Add(transaction);
         await _context.SaveChangesAsync();

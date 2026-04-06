@@ -67,4 +67,41 @@ public class ReportsController : ControllerBase
         var pagedResult = await _reportService.GetInvoiceProfitabilityAsync(query, from, to);
         return Ok(ApiResponse<PagedResult<InvoiceProfitDto>>.SuccessResult(pagedResult));
     }
+    /// <summary>
+    /// تقرير أرصدة المنتجات لكل فرع
+    /// </summary>
+    [HttpGet("stock-per-branch")]
+    public async Task<ActionResult<ApiResponse<PagedResult<StockPerBranchReportDto>>>> GetStockPerBranch(
+        [FromQuery] PaginationQueryDto query,
+        [FromQuery] int? branchId,
+        [FromQuery] int? productId)
+    {
+        var result = await _reportService.GetStockPerBranchReportAsync(query, branchId, productId);
+        return Ok(ApiResponse<PagedResult<StockPerBranchReportDto>>.SuccessResult(result));
+    }
+
+    /// <summary>
+    /// تقرير حركات المخزون للتدقيق
+    /// </summary>
+    [HttpGet("inventory-movements")]
+    public async Task<ActionResult<ApiResponse<PagedResult<BranchInventoryMovementReportDto>>>> GetInventoryMovements(
+        [FromQuery] PaginationQueryDto query,
+        [FromQuery] int? branchId,
+        [FromQuery] int? productId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
+    {
+        var result = await _reportService.GetBranchInventoryMovementsReportAsync(query, branchId, productId, from, to);
+        return Ok(ApiResponse<PagedResult<BranchInventoryMovementReportDto>>.SuccessResult(result));
+    }
+
+    /// <summary>
+    /// تقرير توزيع المخزون لمنتج معين على جميع الفروع
+    /// </summary>
+    [HttpGet("product-distribution/{id}")]
+    public async Task<ActionResult<ApiResponse<ProductStockDistributionDto>>> GetProductDistribution(int id)
+    {
+        var result = await _reportService.GetProductStockDistributionAsync(id);
+        return Ok(ApiResponse<ProductStockDistributionDto>.SuccessResult(result));
+    }
 }

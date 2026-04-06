@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.DTOs;
@@ -17,6 +18,7 @@ public class ReportService : IReportService
     private readonly StoreDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<ReportService> _logger;
 
     // مدة تخزين التقارير في الذاكرة لتخفيف الضغط (5 دقائق)
     private static readonly TimeSpan ReportCacheTtl = TimeSpan.FromMinutes(5);
@@ -24,11 +26,13 @@ public class ReportService : IReportService
     public ReportService(
         StoreDbContext context,
         ICurrentUserService currentUser,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        ILogger<ReportService> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _cache = cache;
+        _logger = logger;
     }
 
     // ==========================================
@@ -288,6 +292,195 @@ public class ReportService : IReportService
             PageNumber = query.PageNumber,
             PageSize = query.PageSize,
             TotalCount = totalCount
+        };
+    }
+
+    // ==========================================
+    // 3. تقارير المخزون والفروع (Inventory Reports)
+    // ==========================================
+
+    public async Task<PagedResult<StockPerBranchReportDto>> GetStockPerBranchReportAsync(PaginationQueryDto query, int? branchId, int? productId)
+    {
+        var companyId = _currentUser.CompanyId!.Value;
+        
+        int? targetBranchId = null;
+        bool isAdmin = _currentUser.IsSuperAdmin || _currentUser.Roles.Contains("admin") || _currentUser.Roles.Contains("owner");
+        
+        if (isAdmin)
+        {
+            targetBranchId = branchId;
+        }
+        else
+        {
+            targetBranchId = _currentUser.BranchId;
+            if (branchId.HasValue && branchId.Value != targetBranchId)
+            {
+                _logger.LogWarning("User {UserId} attempted to access StockPerBranchReport for unauthorized branch {RequestedBranch}. Forced to their assigned branch {AssignedBranch}.", _currentUser.UserId, branchId.Value, targetBranchId);
+            }
+        }
+
+        // Lightweight cache (10 seconds)
+        var cacheBranch = targetBranchId?.ToString() ?? "all";
+        var cacheKey = $"report_stock_branch_{companyId}_{cacheBranch}_{productId}_{query.PageNumber}_{query.PageSize}_{query.Search}";
+        
+        if (_cache.TryGetValue(cacheKey, out PagedResult<StockPerBranchReportDto>? cached) && cached is not null)
+        {
+            _logger.LogInformation("Cache hit for key {CacheKey}", cacheKey);
+            return cached;
+        }
+        _logger.LogInformation("Cache miss for key {CacheKey}. Fetching from DB.", cacheKey);
+
+        var baseQuery = _context.BranchProductStocks
+            .AsNoTracking()
+            .Where(bps => bps.CompanyId == companyId);
+
+        if (targetBranchId.HasValue)
+            baseQuery = baseQuery.Where(bps => bps.BranchId == targetBranchId.Value);
+
+        if (productId.HasValue)
+            baseQuery = baseQuery.Where(bps => bps.ProductId == productId.Value);
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            baseQuery = baseQuery.Where(bps => 
+                EF.Functions.Like(bps.Product.Name, $"%{query.Search}%") || 
+                EF.Functions.Like(bps.Branch.Name, $"%{query.Search}%"));
+        }
+
+        var totalCount = await baseQuery.CountAsync();
+
+        var items = await baseQuery
+            .OrderBy(bps => bps.Branch.Name)
+            .ThenBy(bps => bps.Product.Name)
+            .Skip((query.PageNumber - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .Select(bps => new StockPerBranchReportDto
+            {
+                BranchId = bps.BranchId,
+                BranchName = bps.Branch.Name,
+                ProductId = bps.ProductId,
+                ProductName = bps.Product.Name,
+                Quantity = bps.Quantity,
+                ReservedQuantity = bps.ReservedQuantity,
+                AvailableQuantity = bps.Quantity - bps.ReservedQuantity
+            })
+            .ToListAsync();
+
+        var result = new PagedResult<StockPerBranchReportDto>
+        {
+            Items = items,
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize,
+            TotalCount = totalCount
+        };
+
+        _cache.Set(cacheKey, result, TimeSpan.FromSeconds(10));
+        return result;
+    }
+
+    public async Task<PagedResult<BranchInventoryMovementReportDto>> GetBranchInventoryMovementsReportAsync(PaginationQueryDto query, int? branchId, int? productId, DateTime? from, DateTime? to)
+    {
+        var companyId = _currentUser.CompanyId!.Value;
+        
+        int? targetBranchId = null;
+        bool isAdmin = _currentUser.IsSuperAdmin || _currentUser.Roles.Contains("admin") || _currentUser.Roles.Contains("owner");
+        
+        if (isAdmin)
+        {
+            targetBranchId = branchId;
+        }
+        else
+        {
+            targetBranchId = _currentUser.BranchId;
+            if (branchId.HasValue && branchId.Value != targetBranchId)
+            {
+                _logger.LogWarning("User {UserId} attempted to access BranchInventoryMovements for unauthorized branch {RequestedBranch}. Forced to their assigned branch {AssignedBranch}.", _currentUser.UserId, branchId.Value, targetBranchId);
+            }
+        }
+        
+        var baseQuery = _context.StockTransactions
+            .AsNoTracking()
+            .Where(st => st.CompanyId == companyId && st.BranchId > 0);
+
+        if (targetBranchId.HasValue)
+            baseQuery = baseQuery.Where(st => st.BranchId == targetBranchId.Value);
+
+        if (productId.HasValue)
+            baseQuery = baseQuery.Where(st => st.ProductId == productId.Value);
+
+        if (from.HasValue)
+            baseQuery = baseQuery.Where(st => st.Date >= from.Value);
+
+        if (to.HasValue)
+        {
+            var toDateExclusive = to.Value.Date.AddDays(1);
+            baseQuery = baseQuery.Where(st => st.Date < toDateExclusive);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            baseQuery = baseQuery.Where(st => 
+                EF.Functions.Like(st.Product.Name, $"%{query.Search}%") || 
+                (st.Notes != null && EF.Functions.Like(st.Notes, $"%{query.Search}%")));
+        }
+
+        var totalCount = await baseQuery.CountAsync();
+
+        var items = await (
+                from st in baseQuery
+                join b in _context.Branches on st.BranchId equals b.Id into bj
+                from branch in bj.DefaultIfEmpty()
+                select new BranchInventoryMovementReportDto
+                {
+                    Date = st.Date,
+                    ProductId = st.ProductId,
+                    ProductName = st.Product.Name,
+                    BranchId = st.BranchId,
+                    BranchName = branch != null ? branch.Name : "غير معروف",
+                    MovementType = st.MovementType,
+                    Quantity = st.Quantity,
+                    BeforeQuantity = st.BeforeQuantity,
+                    AfterQuantity = st.AfterQuantity,
+                    ReferenceId = st.ReferenceId
+                })
+            .OrderByDescending(dto => dto.Date)
+            .Skip((query.PageNumber - 1) * query.PageSize)
+            .Take(query.PageSize)
+            .ToListAsync();
+
+        return new PagedResult<BranchInventoryMovementReportDto>
+        {
+            Items = items,
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize,
+            TotalCount = totalCount
+        };
+    }
+
+    public async Task<ProductStockDistributionDto> GetProductStockDistributionAsync(int productId)
+    {
+        var companyId = _currentUser.CompanyId!.Value;
+
+        var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == productId && p.CompanyId == companyId);
+        if (product == null) throw new KeyNotFoundException("المنتج غير موجود.");
+
+        var allocations = await _context.BranchProductStocks
+            .AsNoTracking()
+            .Where(bps => bps.CompanyId == companyId && bps.ProductId == productId)
+            .Select(bps => new BranchStockAllocationDto
+            {
+                BranchId = bps.BranchId,
+                BranchName = bps.Branch.Name,
+                Quantity = bps.Quantity - bps.ReservedQuantity
+            })
+            .ToListAsync();
+
+        return new ProductStockDistributionDto
+        {
+            ProductId = productId,
+            ProductName = product.Name,
+            TotalQuantity = allocations.Sum(a => a.Quantity),
+            Branches = allocations
         };
     }
 }

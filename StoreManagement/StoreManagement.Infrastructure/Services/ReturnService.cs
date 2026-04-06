@@ -61,7 +61,9 @@ public class ReturnService : IReturnService
         if (dto.Items.Any(i => i.OriginalInvoiceItemId == null))
             throw new InvalidOperationException("جميع بنود المرتجع المرجعي يجب أن تحمل OriginalInvoiceItemId");
 
-        var branchId = dto.BranchId > 0 ? dto.BranchId : (_currentUser.BranchId ?? throw new ArgumentException("معرف الفرع ضروري"));
+        if (dto.BranchId <= 0)
+            throw new ArgumentException("معرف الفرع (BranchId) التابع للمرتجع إلزامي ولا يمكن الاعتماد على الفرع الافتراضي.");
+        var branchId = dto.BranchId;
         if (originalInvoice.BranchId != branchId)
             throw new InvalidOperationException("لا يمكن إرجاع فاتورة من فرع مختلف.");
 
@@ -220,7 +222,9 @@ public class ReturnService : IReturnService
         if (dto.Items.Any(i => i.OriginalInvoiceItemId != null))
             throw new InvalidOperationException("المرتجع اليدوي لا يجب أن يحتوي على OriginalInvoiceItemId");
 
-        var branchId = dto.BranchId > 0 ? dto.BranchId : (_currentUser.BranchId ?? throw new ArgumentException("معرف الفرع ضروري"));
+        if (dto.BranchId <= 0)
+            throw new ArgumentException("معرف الفرع (BranchId) التابع للمرتجع إلزامي ولا يمكن الاعتماد على الفرع الافتراضي.");
+        var branchId = dto.BranchId;
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try

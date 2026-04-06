@@ -2,6 +2,9 @@
   <Folder Name="/Solution Items/">
     <File Path="ApiSwager.json" />
   </Folder>
+  <Folder Name="/StoreManagement/">
+    <Project Path="StoreManagement/StoreManagement.IntegrationTests/StoreManagement.IntegrationTests.csproj" />
+  </Folder>
   <Project Path="DafterProApi.csproj" />
   <Project Path="StoreManagement\StoreManagement.Server\StoreManagement.Server.csproj" />
   <Project Path="StoreManagement\StoreManagement.Services\StoreManagement.Services.csproj" />

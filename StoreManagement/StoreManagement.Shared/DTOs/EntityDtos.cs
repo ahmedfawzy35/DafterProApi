@@ -1157,13 +1157,15 @@ public class CustomerStatementDto
 // ===== DTOs خاصة بالتنبيهات (Alerts) =====
 public class LowStockAlertDto
 {
+    public int BranchId { get; set; }
+    public string BranchName { get; set; } = string.Empty;
     public int ProductId { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public string ProductName { get; set; } = string.Empty;
     public string? SKU { get; set; }
-    public double StockQuantity { get; set; }
-    public double MinimumStock { get; set; }
     public string Unit { get; set; } = string.Empty;
-    public string? CategoryName { get; set; }
+    public double Quantity { get; set; }
+    public double MinimumStock { get; set; }
+    public double ShortageQuantity { get; set; }
 }
 
 public class OverdueCustomerAlertDto
@@ -1210,4 +1212,15 @@ public class ShiftReadDto
     public DateTime OpenedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
     public string Status { get; set; } = string.Empty;
+}
+
+public class BranchStockInitializationResultDto
+{
+    public int CompaniesProcessed { get; set; }
+    public int TransactionsProcessed { get; set; }
+    public int BranchStockRowsCreated { get; set; }
+    public int BranchStockRowsUpdated { get; set; }
+    public int SkippedTransactions { get; set; }
+    public double DurationMs { get; set; }
+    public List<string> Warnings { get; set; } = new();
 }

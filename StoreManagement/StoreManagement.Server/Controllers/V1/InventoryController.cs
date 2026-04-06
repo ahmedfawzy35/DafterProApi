@@ -17,10 +17,12 @@ namespace StoreManagement.Server.Controllers.V1;
 public class InventoryController : ControllerBase
 {
     private readonly IInventoryService _inventoryService;
+    private readonly IBranchInventoryService _branchInventoryService;
 
-    public InventoryController(IInventoryService inventoryService)
+    public InventoryController(IInventoryService inventoryService, IBranchInventoryService branchInventoryService)
     {
         _inventoryService = inventoryService;
+        _branchInventoryService = branchInventoryService;
     }
 
     // =========================================================================
@@ -108,6 +110,27 @@ public class InventoryController : ControllerBase
     // =========================================================================
     // الرصيد الافتتاحي (Initial Stock)
     // =========================================================================
+
+    /// <summary>POST /api/v1/inventory/branches/init-stocks — تهيئة وتعبئة أرصدة الفروع (Backfill)</summary>
+    [HttpPost("branches/init-stocks")]
+    [Authorize(Roles = "admin,owner")]
+    public async Task<ActionResult<ApiResponse<BranchStockInitializationResultDto>>> InitBranchStocks(
+        [FromQuery] bool forceReset = false,
+        [FromQuery] bool dryRun = false,
+        [FromQuery] int? companyId = null)
+    {
+        // دعم قراءة X-Dry-Run من الـ Header كبديل
+        if (Request.Headers.TryGetValue("X-Dry-Run", out var headerDryRun) && bool.TryParse(headerDryRun, out var isDryRun))
+        {
+            dryRun = dryRun || isDryRun;
+        }
+
+        var result = await _branchInventoryService.InitializeFromTransactionsAsync(companyId, forceReset, dryRun);
+        var msg = dryRun 
+            ? $"تم تشغيل الفحص الوهمي (Dry Run) بنجاح. السجلات المتأثرة: {result.BranchStockRowsCreated + result.BranchStockRowsUpdated} - التحذيرات: {result.Warnings.Count} - استغرق: {result.DurationMs} ms" 
+            : $"تم تعمير الأرصدة بنجاح. السجلات المتأثرة: {result.BranchStockRowsCreated + result.BranchStockRowsUpdated} - التحذيرات: {result.Warnings.Count} - استغرق: {result.DurationMs} ms";
+        return Ok(ApiResponse<BranchStockInitializationResultDto>.SuccessResult(result, msg));
+    }
 
     /// <summary>POST /api/v1/inventory/initial — تسجيل رصيد أول المدة</summary>
     [HttpPost("initial")]

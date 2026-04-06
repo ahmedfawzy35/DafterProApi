@@ -20,25 +20,25 @@ public class AlertsController : ControllerBase
 
     [HttpGet("low-stock")]
     [Authorize(Policy = "RequirePurchasesPermission")]
-    public async Task<ActionResult<PagedResult<LowStockAlertDto>>> GetLowStock([FromQuery] PaginationQueryDto query)
+    public async Task<ActionResult<ApiResponse<PagedResult<LowStockAlertDto>>>> GetLowStock([FromQuery] PaginationQueryDto query, [FromQuery] int? branchId = null)
     {
-        var result = await _alertService.GetLowStockAlertsAsync(query);
-        return Ok(result);
+        var result = await _alertService.GetLowStockAlertsAsync(query, branchId);
+        return Ok(ApiResponse<PagedResult<LowStockAlertDto>>.SuccessResult(result));
     }
 
     [HttpGet("overdue")]
     [Authorize(Policy = "RequireSalesPermission")]
-    public async Task<ActionResult<PagedResult<OverdueCustomerAlertDto>>> GetOverdue([FromQuery] PaginationQueryDto query, [FromQuery] int dayThreshold = 30)
+    public async Task<ActionResult<ApiResponse<PagedResult<OverdueCustomerAlertDto>>>> GetOverdue([FromQuery] PaginationQueryDto query, [FromQuery] int dayThreshold = 30)
     {
         var result = await _alertService.GetOverdueInvoicesAlertsAsync(query, dayThreshold);
-        return Ok(result);
+        return Ok(ApiResponse<PagedResult<OverdueCustomerAlertDto>>.SuccessResult(result));
     }
 
     [HttpGet("high-debt")]
     [Authorize(Policy = "RequireSalesPermission")]
-    public async Task<ActionResult<PagedResult<HighDebtCustomerAlertDto>>> GetHighDebt([FromQuery] PaginationQueryDto query)
+    public async Task<ActionResult<ApiResponse<PagedResult<HighDebtCustomerAlertDto>>>> GetHighDebt([FromQuery] PaginationQueryDto query)
     {
         var result = await _alertService.GetHighDebtCustomersAlertsAsync(query);
-        return Ok(result);
+        return Ok(ApiResponse<PagedResult<HighDebtCustomerAlertDto>>.SuccessResult(result));
     }
 }

@@ -75,4 +75,11 @@ public class DashboardController : ControllerBase
         var result = await _dashboardService.GetLowStockProductsAsync();
         return Ok(ApiResponse<List<ProductReadDto>>.SuccessResult(result));
     }
+
+    [HttpGet("branch")]
+    public async Task<ActionResult<ApiResponse<BranchDashboardKpiDto>>> GetBranchKpis([FromQuery] int? branchId = null)
+    {
+        var result = await _dashboardService.GetBranchKpisAsync(branchId);
+        return Ok(ApiResponse<BranchDashboardKpiDto>.SuccessResult(result));
+    }
 }

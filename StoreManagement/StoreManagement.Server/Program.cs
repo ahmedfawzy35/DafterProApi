@@ -44,6 +44,11 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ===== Startup Logging =====
+Log.Information("Starting application in {Environment} environment", builder.Environment.EnvironmentName);
+
+// ===== Configuration =====
 builder.Host.UseSerilog();
 
 // ===== قراءة الإعدادات =====
@@ -57,15 +62,18 @@ var cacheSettings = builder.Configuration.GetSection("CacheSettings").Get<CacheS
 var rateLimitSettings = builder.Configuration.GetSection("RateLimitSettings").Get<RateLimitSettings>() ?? new RateLimitSettings();
 
 // ===== قاعدة البيانات (Scoped) =====
-builder.Services.AddDbContext<StoreDbContext>((sp, options) =>
+if (!builder.Environment.IsEnvironment("Testing"))
 {
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        sql => sql.MigrationsAssembly("StoreManagement.Data"));
-}, ServiceLifetime.Scoped);
+    builder.Services.AddDbContext<StoreDbContext>((sp, options) =>
+    {
+        options.UseSqlServer(
+            builder.Configuration.GetConnectionString("DefaultConnection"),
+            sql => sql.MigrationsAssembly("StoreManagement.Data"));
+    }, ServiceLifetime.Scoped);
+}
 
 // ===== Identity =====
-builder.Services.AddIdentity<User, Role>(options =>
+var identityBuilder = builder.Services.AddIdentity<User, Role>(options =>
 {
     options.Password.RequireDigit = true;
     options.Password.RequiredLength = 8;
@@ -73,9 +81,15 @@ builder.Services.AddIdentity<User, Role>(options =>
     options.Password.RequireUppercase = true;
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     options.Lockout.MaxFailedAccessAttempts = 5;
-})
-.AddEntityFrameworkStores<StoreDbContext>()
-.AddDefaultTokenProviders();
+});
+
+// في بيئة الاختبار، سنقوم بتسجيل الـ stores يدوياً في الـ Factory لأن الـ DbContext لم يسجل بعد
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    identityBuilder.AddEntityFrameworkStores<StoreDbContext>();
+}
+
+identityBuilder.AddDefaultTokenProviders();
 
 // ===== JWT Authentication =====
 builder.Services.AddAuthentication(options =>
@@ -122,7 +136,11 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy("RequirePermission:finance.delete",
         p => p.RequireClaim(AppClaims.Permission, "finance.delete"))
     .AddPolicy("RequirePermission:reports.export",
-        p => p.RequireClaim(AppClaims.Permission, "reports.export"));
+        p => p.RequireClaim(AppClaims.Permission, "reports.export"))
+    .AddPolicy("RequirePurchasesPermission", 
+        p => p.RequireClaim(AppClaims.Permission, "purchases.view"))
+    .AddPolicy("RequireSalesPermission", 
+        p => p.RequireClaim(AppClaims.Permission, "sales.view"));
 
 // ===== Distributed Cache (Redis + MemoryCache Fallback) =====
 builder.Services.AddMemoryCache();
@@ -198,6 +216,7 @@ builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IBranchService, BranchService>();
+builder.Services.AddScoped<IBranchInventoryService, BranchInventoryService>(); // New Branch Inventory Service
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
@@ -234,16 +253,22 @@ builder.Services.AddApiVersioning(options =>
     options.SubstituteApiVersionInUrl = true;
 });
 
-// ===== Hangfire (Background Jobs) =====
-builder.Services.AddHangfire(config =>
-    config.UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection")));
-builder.Services.AddHangfireServer();
+// ===== Hangfire (Background Jobs) — skipped in Testing =====
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHangfire(config =>
+        config.UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection")));
+    builder.Services.AddHangfireServer();
+}
 
-// ===== Health Checks =====
-builder.Services.AddHealthChecks()
-    .AddSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")!,
-        name: "SQL Server", tags: ["database"]);
+// ===== Health Checks — skipped in Testing =====
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHealthChecks()
+        .AddSqlServer(
+            builder.Configuration.GetConnectionString("DefaultConnection")!,
+            name: "SQL Server", tags: ["database"]);
+}
 
 // ===== Controllers + Swagger =====
 builder.Services.AddControllers();
@@ -279,9 +304,10 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// ===== Data Seeding =====
-using (var scope = app.Services.CreateScope())
+// ===== Data Seeding (skipped in Testing environment) =====
+if (!app.Environment.IsEnvironment("Testing"))
 {
+    using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
@@ -331,19 +357,25 @@ app.UseTenantStatus();
 // 9. Subscription Check (بعد Tenant Resolution)
 app.UseMiddleware<SubscriptionMiddleware>();
 
-// ===== Hangfire Dashboard =====
-app.UseHangfireDashboard("/hangfire", new DashboardOptions { Authorization = [] });
+// ===== Hangfire Dashboard + Jobs — skipped in Testing =====
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions { Authorization = [] });
 
-// ===== جدولة Outbox Processor (كل دقيقة) =====
-RecurringJob.AddOrUpdate<OutboxProcessorJob>(
-    "outbox-processor",
-    job => job.ProcessAsync(),
-    Cron.Minutely());
+    RecurringJob.AddOrUpdate<OutboxProcessorJob>(
+        "outbox-processor",
+        job => job.ProcessAsync(),
+        Cron.Minutely());
+}
 
 // ===== Health + Controllers =====
-app.MapHealthChecks("/health");
+if (!app.Environment.IsEnvironment("Testing"))
+    app.MapHealthChecks("/health");
+
 app.MapControllers().RequireRateLimiting("PerCompany");
 
 Log.Information("تم تشغيل StoreManagement SaaS Platform بنجاح 🚀");
 
 await app.RunAsync();
+
+public partial class Program { }

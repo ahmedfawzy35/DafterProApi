@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using StoreManagement.Data;
 using StoreManagement.Shared.Common;
 using StoreManagement.Shared.DTOs;
@@ -13,47 +14,88 @@ public class AlertService : IAlertService
     private readonly StoreDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<AlertService> _logger;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(10); // احتفاظ قصير للأداء العالي
 
-    public AlertService(StoreDbContext context, ICurrentUserService currentUser, IMemoryCache cache)
+    public AlertService(StoreDbContext context, ICurrentUserService currentUser, IMemoryCache cache, ILogger<AlertService> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _cache = cache;
+        _logger = logger;
     }
 
-    public async Task<PagedResult<LowStockAlertDto>> GetLowStockAlertsAsync(PaginationQueryDto query)
+    public async Task<PagedResult<LowStockAlertDto>> GetLowStockAlertsAsync(PaginationQueryDto query, int? branchId = null)
     {
         var companyId = _currentUser.CompanyId!.Value;
-        var branchId = _currentUser.BranchId; // إذا كان متوفر لعرض النواقص بالفرع
+        
+        int? targetBranchId = null;
+        bool isAdmin = _currentUser.IsSuperAdmin || _currentUser.Roles.Contains("admin") || _currentUser.Roles.Contains("owner");
+        
+        if (isAdmin)
+        {
+            targetBranchId = branchId;
+        }
+        else
+        {
+            targetBranchId = _currentUser.BranchId;
+            if (branchId.HasValue && branchId.Value != targetBranchId)
+            {
+                _logger.LogWarning("User {UserId} attempted to access LowStockAlerts for unauthorized branch {RequestedBranch}. Forced to their assigned branch {AssignedBranch}.", _currentUser.UserId, branchId.Value, targetBranchId);
+            }
+        }
 
-        var cacheKey = $"alerts_lowstock_{companyId}_{branchId}_{query.PageNumber}_{query.PageSize}";
+        var cacheBranch = targetBranchId?.ToString() ?? "all";
+        var cacheKey = $"alerts_lowstock_{companyId}_{cacheBranch}_{query.PageNumber}_{query.PageSize}_{query.Search}";
 
         if (_cache.TryGetValue(cacheKey, out PagedResult<LowStockAlertDto>? cached) && cached != null)
+        {
+            _logger.LogInformation("Cache hit for key {CacheKey}", cacheKey);
             return cached;
+        }
+        _logger.LogInformation("Cache miss for key {CacheKey}. Fetching from DB.", cacheKey);
 
-        var baseQuery = _context.Products
-            .Where(p => p.CompanyId == companyId && p.MinimumStock > 0 && p.StockQuantity <= p.MinimumStock);
+        var baseQuery = _context.BranchProductStocks
+            .AsNoTracking()
+            .Where(bps => bps.CompanyId == companyId && bps.Product.MinimumStock > 0 && bps.Quantity <= bps.Product.MinimumStock);
+
+        if (targetBranchId.HasValue && targetBranchId.Value > 0)
+            baseQuery = baseQuery.Where(bps => bps.BranchId == targetBranchId.Value);
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            baseQuery = baseQuery.Where(bps => 
+                EF.Functions.Like(bps.Product.Name, $"%{query.Search}%") || 
+                EF.Functions.Like(bps.Product.SKU, $"%{query.Search}%") || 
+                EF.Functions.Like(bps.Branch.Name, $"%{query.Search}%"));
+        }
 
         var total = await baseQuery.CountAsync();
+        
         var rawItems = await baseQuery
-            .OrderBy(p => p.StockQuantity)
+            .OrderBy(bps => bps.Quantity - bps.Product.MinimumStock) // الأكثر عجزاً أولاً
+            .ThenBy(bps => bps.Branch.Name)
+            .ThenBy(bps => bps.Product.Name)
             .Skip((query.PageNumber - 1) * query.PageSize)
             .Take(query.PageSize)
+            .Select(bps => new LowStockAlertDto
+            {
+                BranchId = bps.BranchId,
+                BranchName = bps.Branch.Name,
+                ProductId = bps.ProductId,
+                ProductName = bps.Product.Name,
+                SKU = bps.Product.SKU,
+                Unit = bps.Product.Unit ?? "",
+                // ملاحظة هامة يُترك للفيوتشر: نعتمد حالياً على Quantity وتم تجهيز الكود للتحول إلى AvailableQuantity لاحقاً عند تفعيل الحجز
+                Quantity = bps.Quantity,
+                MinimumStock = bps.Product.MinimumStock,
+                ShortageQuantity = bps.Product.MinimumStock - bps.Quantity
+            })
             .ToListAsync();
 
         var result = new PagedResult<LowStockAlertDto>
         {
-            Items = rawItems.Select(p => new LowStockAlertDto
-            {
-                ProductId = p.Id,
-                Name = p.Name,
-                SKU = p.SKU,
-                StockQuantity = p.StockQuantity,
-                MinimumStock = p.MinimumStock,
-                Unit = p.Unit ?? "",
-                CategoryName = p.Category?.Name
-            }).ToList(),
+            Items = rawItems,
             PageNumber = query.PageNumber,
             PageSize = query.PageSize,
             TotalCount = total

@@ -161,7 +161,10 @@ public class InvoiceService : IInvoiceService
 
 
 
-        var branchId = dto.BranchId > 0 ? dto.BranchId : (_currentUser.BranchId ?? throw new ArgumentException("معرف الفرع ضروري"));
+        if (dto.BranchId <= 0)
+            throw new ArgumentException("معرف الفرع (BranchId) التابع للفاتورة إلزامي ولا يمكن الاعتماد على الفرع الافتراضي.");
+            
+        var branchId = dto.BranchId;
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try

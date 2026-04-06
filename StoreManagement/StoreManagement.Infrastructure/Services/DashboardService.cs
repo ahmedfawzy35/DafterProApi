@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using StoreManagement.Data;
 using StoreManagement.Shared.DTOs;
 using StoreManagement.Shared.Enums;
@@ -10,11 +12,15 @@ public class DashboardService : IDashboardService
 {
     private readonly StoreDbContext _context;
     private readonly ICurrentUserService _currentUser;
+    private readonly IMemoryCache _cache;
+    private readonly ILogger<DashboardService> _logger;
 
-    public DashboardService(StoreDbContext context, ICurrentUserService currentUser)
+    public DashboardService(StoreDbContext context, ICurrentUserService currentUser, IMemoryCache cache, ILogger<DashboardService> logger)
     {
         _context = context;
         _currentUser = currentUser;
+        _cache = cache;
+        _logger = logger;
     }
 
     public async Task<DashboardStatsDto> GetDailyStatsAsync()
@@ -300,8 +306,7 @@ public class DashboardService : IDashboardService
             MonthMargin = monthMargin,
             TotalReceivables = totalReceivables,
             TotalPayables = totalPayables,
-            LowStockItemsCount = lowStockCount,
-            OpenCustomerInvoices = openInvoicesCount
+            LowStockItemsCount = lowStockCount
         };
     }
 
@@ -367,5 +372,130 @@ public class DashboardService : IDashboardService
             .ToListAsync();
 
         return products;
+    }
+
+    public async Task<BranchDashboardKpiDto> GetBranchKpisAsync(int? branchId = null)
+    {
+        var companyId = _currentUser.CompanyId!.Value;
+        
+        int? targetBranchId = null;
+        bool isAdmin = _currentUser.IsSuperAdmin || _currentUser.Roles.Contains("admin") || _currentUser.Roles.Contains("owner");
+        
+        if (isAdmin)
+        {
+            targetBranchId = branchId;
+        }
+        else
+        {
+            targetBranchId = _currentUser.BranchId;
+            if (branchId.HasValue && branchId.Value != targetBranchId)
+            {
+                _logger.LogWarning("User {UserId} attempted to access Dashboard for unauthorized branch {RequestedBranch}. Forced to their assigned branch {AssignedBranch}.", _currentUser.UserId, branchId.Value, targetBranchId);
+            }
+        }
+
+        var cacheBranch = targetBranchId?.ToString() ?? "all";
+        var cacheKey = $"dashboard_branch_kpis_{companyId}_{cacheBranch}";
+
+        if (_cache.TryGetValue(cacheKey, out BranchDashboardKpiDto? cached) && cached != null)
+        {
+            _logger.LogInformation("Cache hit for key {CacheKey}", cacheKey);
+            return cached;
+        }
+        _logger.LogInformation("Cache miss for key {CacheKey}. Fetching from DB.", cacheKey);
+
+        // 1. تقييم المخزون الحالي (BranchProductStocks)
+        var baseStockQuery = _context.BranchProductStocks
+            .AsNoTracking()
+            .Where(bps => bps.CompanyId == companyId);
+
+        if (targetBranchId.HasValue && targetBranchId.Value > 0)
+        {
+            baseStockQuery = baseStockQuery.Where(bps => bps.BranchId == targetBranchId.Value);
+        }
+
+        var totalStockQuantity = await baseStockQuery.SumAsync(bps => (double?)bps.Quantity) ?? 0;
+        
+        var lowStockQuery = baseStockQuery
+            .Where(bps => bps.Product.MinimumStock > 0 && bps.Quantity <= bps.Product.MinimumStock);
+
+        var lowStockItemsCount = await lowStockQuery.CountAsync();
+
+        var topLowStockItems = await lowStockQuery
+            .OrderBy(bps => bps.Quantity - bps.Product.MinimumStock)
+            .Take(5)
+            .Select(bps => new LowStockAlertDto
+            {
+                BranchId = bps.BranchId,
+                BranchName = bps.Branch.Name,
+                ProductId = bps.ProductId,
+                ProductName = bps.Product.Name,
+                SKU = bps.Product.SKU,
+                Unit = bps.Product.Unit ?? "",
+                Quantity = bps.Quantity,
+                MinimumStock = bps.Product.MinimumStock,
+                ShortageQuantity = bps.Product.MinimumStock - bps.Quantity
+            })
+            .ToListAsync();
+
+        // 2. حركات الشهر الحالي
+        var today = DateTime.UtcNow.Date;
+        var firstDayThisMonth = new DateTime(today.Year, today.Month, 1);
+        
+        var recentMovementsQuery = _context.StockTransactions
+            .AsNoTracking()
+            .Where(st => st.CompanyId == companyId && st.Date >= firstDayThisMonth);
+            
+        if (targetBranchId.HasValue && targetBranchId.Value > 0)
+        {
+            recentMovementsQuery = recentMovementsQuery.Where(st => st.BranchId == targetBranchId.Value);
+        }
+        
+        var recentMovementsCount = await recentMovementsQuery.CountAsync();
+
+        // 3. توزيع كميات المخزون
+        List<BranchStockSummaryDto> stockDistribution = new();
+        var isAuthorizedForDistribution = _currentUser.IsSuperAdmin || 
+                                          _currentUser.Roles.Contains("admin") || 
+                                          _currentUser.Roles.Contains("owner");
+                                          
+        if (isAuthorizedForDistribution)
+        {
+            stockDistribution = await _context.BranchProductStocks
+                .AsNoTracking()
+                .Where(bps => bps.CompanyId == companyId)
+                .GroupBy(bps => new { bps.BranchId, bps.Branch.Name })
+                .Select(g => new BranchStockSummaryDto
+                {
+                    BranchId = g.Key.BranchId,
+                    BranchName = g.Key.Name,
+                    TotalQuantity = g.Sum(bps => bps.Quantity)
+                })
+                .OrderByDescending(b => b.TotalQuantity)
+                .ToListAsync();
+        }
+
+        string resolvedBranchName = "كل الفروع";
+        if (targetBranchId.HasValue && targetBranchId.Value > 0)
+        {
+            resolvedBranchName = await _context.Branches
+                .Where(b => b.Id == targetBranchId.Value)
+                .Select(b => b.Name)
+                .FirstOrDefaultAsync() ?? "غير معروف";
+        }
+
+        var result = new BranchDashboardKpiDto
+        {
+            BranchId = targetBranchId ?? 0,
+            BranchName = resolvedBranchName,
+            LowStockItemsCount = lowStockItemsCount,
+            TotalStockQuantity = totalStockQuantity,
+            RecentMovementsCount = recentMovementsCount,
+            TopLowStockItems = topLowStockItems,
+            StockDistribution = stockDistribution
+        };
+
+        _cache.Set(cacheKey, result, TimeSpan.FromSeconds(10));
+        return result;
     }
 }
