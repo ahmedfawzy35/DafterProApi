@@ -462,7 +462,7 @@ public class InventoryService : IInventoryService
     // Internal — يُستخدم من InvoiceService فقط
     // =========================================================================
 
-    public async Task RegisterInitialStockAsync(int productId, double quantity, int branchId)
+    public async Task RegisterInitialStockAsync(int productId, decimal quantity, int branchId)
     {
         if (branchId <= 0)
             throw new ArgumentException("معرف الفرع ضروري للرصيد الافتتاحي.");
@@ -496,7 +496,7 @@ public class InventoryService : IInventoryService
 
     public async Task ProcessInvoiceStockAsync(
         int invoiceId, int invoiceItemId, int productId,
-        double quantity, int branchId, InvoiceType invoiceType, string notes)
+        decimal quantity, int branchId, InvoiceType invoiceType, string notes)
     {
         if (branchId <= 0)
             throw new ArgumentException("معرف الفرع ضروري لأي حركة مخزون.");
@@ -553,7 +553,7 @@ public class InventoryService : IInventoryService
 
     public async Task ReverseInvoiceStockAsync(
         int invoiceId, int invoiceItemId, int productId,
-        double quantity, int branchId, InvoiceType originalInvoiceType, string notes)
+        decimal quantity, int branchId, InvoiceType originalInvoiceType, string notes)
     {
         if (branchId <= 0)
             throw new ArgumentException("معرف الفرع ضروري لأي حركة مخزون.");

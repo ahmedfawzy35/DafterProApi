@@ -95,9 +95,9 @@ public class StockPerBranchReportDto
     public string BranchName { get; set; } = string.Empty;
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
-    public double Quantity { get; set; }
-    public double ReservedQuantity { get; set; }
-    public double AvailableQuantity { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal ReservedQuantity { get; set; }
+    public decimal AvailableQuantity { get; set; }
 }
 
 public class BranchInventoryMovementReportDto
@@ -108,9 +108,9 @@ public class BranchInventoryMovementReportDto
     public int BranchId { get; set; }
     public string BranchName { get; set; } = string.Empty;
     public StoreManagement.Shared.Enums.StockMovementType MovementType { get; set; }
-    public double Quantity { get; set; }
-    public double BeforeQuantity { get; set; }
-    public double AfterQuantity { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal BeforeQuantity { get; set; }
+    public decimal AfterQuantity { get; set; }
     public int? ReferenceId { get; set; }
 }
 
@@ -118,7 +118,7 @@ public class ProductStockDistributionDto
 {
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
-    public double TotalQuantity { get; set; }
+    public decimal TotalQuantity { get; set; }
     public List<BranchStockAllocationDto> Branches { get; set; } = new();
 }
 
@@ -126,7 +126,7 @@ public class BranchStockAllocationDto
 {
     public int BranchId { get; set; }
     public string BranchName { get; set; } = string.Empty;
-    public double Quantity { get; set; }
+    public decimal Quantity { get; set; }
 }
 
 // ===== لوحة التحكم الفرعية (Branch Dashboard) =====
@@ -136,7 +136,7 @@ public class BranchDashboardKpiDto
     public int BranchId { get; set; }
     public string BranchName { get; set; } = string.Empty;
     public int LowStockItemsCount { get; set; }
-    public double TotalStockQuantity { get; set; }
+    public decimal TotalStockQuantity { get; set; }
     public int RecentMovementsCount { get; set; } 
     public List<LowStockAlertDto> TopLowStockItems { get; set; } = new();
     
@@ -148,5 +148,5 @@ public class BranchStockSummaryDto
 {
     public int BranchId { get; set; }
     public string BranchName { get; set; } = string.Empty;
-    public double TotalQuantity { get; set; }
+    public decimal TotalQuantity { get; set; }
 }

@@ -8,11 +8,11 @@ public record BranchStockDto
     public string ProductName { get; init; } = string.Empty;
     
     // الرصيد الفعلي
-    public double Quantity { get; init; }
+    public decimal Quantity { get; init; }
     
     // محجوز
-    public double ReservedQuantity { get; init; }
+    public decimal ReservedQuantity { get; init; }
     
     // المتاح
-    public double AvailableQuantity => Quantity - ReservedQuantity;
+    public decimal AvailableQuantity => Quantity - ReservedQuantity;
 }

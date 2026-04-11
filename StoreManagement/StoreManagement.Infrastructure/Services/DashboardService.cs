@@ -218,7 +218,7 @@ public class DashboardService : IDashboardService
                 i.Date,
                 i.Type,
                 i.NetTotal,
-                TotalCost = i.Items.Sum(item => item.Quantity * (double)item.CostPriceAtSale)
+                TotalCost = i.Items.Sum(item => item.Quantity * item.CostPriceAtSale)
             })
             .ToListAsync();
 
@@ -230,8 +230,8 @@ public class DashboardService : IDashboardService
         var todayReturnTotal = currentMonthSalesDetails.Where(i => i.Date >= today && i.Type == InvoiceType.SalesReturn).Sum(i => i.NetTotal);
         var todaySales = todaySalesTotal - todayReturnTotal;
         
-        var currentMonthCostSales = currentMonthSalesDetails.Where(i => i.Type == InvoiceType.Sale).Sum(i => (decimal)i.TotalCost);
-        var currentMonthCostReturns = currentMonthSalesDetails.Where(i => i.Type == InvoiceType.SalesReturn).Sum(i => (decimal)i.TotalCost);
+        var currentMonthCostSales = currentMonthSalesDetails.Where(i => i.Type == InvoiceType.Sale).Sum(i => i.TotalCost);
+        var currentMonthCostReturns = currentMonthSalesDetails.Where(i => i.Type == InvoiceType.SalesReturn).Sum(i => i.TotalCost);
         var currentMonthCost = currentMonthCostSales - currentMonthCostReturns;
 
         var monthProfit = monthSales - currentMonthCost;
@@ -284,10 +284,12 @@ public class DashboardService : IDashboardService
             
         totalPayables -= unallocatedPayments;
 
-        // 5. المنتجات منخفضة المخزون
-        var lowStockCount = await _context.Products
-            .Where(p => p.CompanyId == companyId && p.IsActive && p.StockQuantity <= p.MinimumStock)
-            .CountAsync();
+        // 5. المنتجات منخفضة المخزون — مبنية على BranchProductStock (single source of truth)
+        // Admin/Owner → مقارنة مع إجمالي الفروع | Branch User → فرعه فقط
+        var lowStockCount = await _context.BranchProductStocks
+            .Where(bps => bps.CompanyId == companyId && bps.Product.IsActive && bps.Product.MinimumStock > 0)
+            .GroupBy(bps => bps.ProductId)
+            .CountAsync(g => g.Sum(bps => bps.Quantity) <= g.Min(bps => bps.Product.MinimumStock));
 
         // 6. الفواتير المعلقة
         var openInvoicesCount = await _context.Invoices
@@ -353,25 +355,43 @@ public class DashboardService : IDashboardService
     {
         var companyId = _currentUser.CompanyId!.Value;
 
-        var products = await _context.Products
-            .Where(p => p.CompanyId == companyId && p.IsActive && p.StockQuantity <= p.MinimumStock)
-            .OrderBy(p => p.StockQuantity)
-            .Take(50) // أقصى حد 50 للوحة التحكم تجنباً للأحجام الضخمة
-            .Select(p => new ProductReadDto
+        // مبني على BranchProductStock — إجمالي الفروع (Admin view)
+        var aggregates = await _context.BranchProductStocks
+            .Where(bps => bps.CompanyId == companyId && bps.Product.IsActive && bps.Product.MinimumStock > 0)
+            .GroupBy(bps => new { bps.ProductId, bps.Product.Name, bps.Product.SKU, bps.Product.Barcode, bps.Product.Price, bps.Product.MinimumStock, bps.Product.Unit })
+            .Select(g => new
             {
-                Id = p.Id,
-                Name = p.Name,
-                SKU = p.SKU,
-                Barcode = p.Barcode,
-                Price = p.Price,
-                StockQuantity = p.StockQuantity,
-                MinimumStock = p.MinimumStock,
-                Unit = p.Unit,
-                IsActive = true
+                g.Key.ProductId,
+                g.Key.Name,
+                g.Key.SKU,
+                g.Key.Barcode,
+                g.Key.Price,
+                g.Key.Unit,
+                g.Key.MinimumStock,
+                TotalStock = g.Sum(bps => bps.Quantity),
+                AvailableStock = g.Sum(bps => bps.Quantity - bps.ReservedQuantity)
             })
+            .Where(x => x.TotalStock <= x.MinimumStock)
+            .OrderBy(x => x.TotalStock)
+            .Take(50)
             .ToListAsync();
 
-        return products;
+        return aggregates.Select(x => new ProductReadDto
+        {
+            Id = x.ProductId,
+            Name = x.Name,
+            SKU = x.SKU,
+            Barcode = x.Barcode ?? string.Empty,
+            Price = x.Price,
+            TotalStockQuantity = x.TotalStock,
+            AvailableStockQuantity = x.AvailableStock,
+#pragma warning disable CS0618
+            StockQuantity = x.TotalStock, // Transitional alias
+#pragma warning restore CS0618
+            MinimumStock = x.MinimumStock,
+            Unit = x.Unit ?? string.Empty,
+            IsActive = true
+        }).ToList();
     }
 
     public async Task<BranchDashboardKpiDto> GetBranchKpisAsync(int? branchId = null)
@@ -414,7 +434,7 @@ public class DashboardService : IDashboardService
             baseStockQuery = baseStockQuery.Where(bps => bps.BranchId == targetBranchId.Value);
         }
 
-        var totalStockQuantity = await baseStockQuery.SumAsync(bps => (double?)bps.Quantity) ?? 0;
+        var totalStockQuantity = await baseStockQuery.SumAsync(bps => (decimal?)bps.Quantity) ?? 0m;
         
         var lowStockQuery = baseStockQuery
             .Where(bps => bps.Product.MinimumStock > 0 && bps.Quantity <= bps.Product.MinimumStock);

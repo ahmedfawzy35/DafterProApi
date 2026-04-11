@@ -14,5 +14,5 @@ public class StockTransferItem : BaseEntity
     public Product Product { get; set; } = null!;
     
     // الكمية المنقولة (يجب أن تكون موجبة دائمة)
-    public double Quantity { get; set; }
+    public decimal Quantity { get; set; }
 }

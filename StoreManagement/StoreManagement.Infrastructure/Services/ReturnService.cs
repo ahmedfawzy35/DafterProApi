@@ -19,6 +19,7 @@ public class ReturnService : IReturnService
     private readonly IFinanceService _financeService;
     private readonly IProductService _productService;
     private readonly IOutboxService _outboxService;
+    private readonly IAccountingPeriodService _accountingPeriodService;
 
     public ReturnService(
         StoreDbContext context,
@@ -26,7 +27,8 @@ public class ReturnService : IReturnService
         IInventoryService inventoryService,
         IFinanceService financeService,
         IProductService productService,
-        IOutboxService outboxService)
+        IOutboxService outboxService,
+        IAccountingPeriodService accountingPeriodService)
     {
         _context = context;
         _currentUser = currentUser;
@@ -34,6 +36,7 @@ public class ReturnService : IReturnService
         _financeService = financeService;
         _productService = productService;
         _outboxService = outboxService;
+        _accountingPeriodService = accountingPeriodService;
     }
 
     public async Task<InvoiceReadDto> CreateReferencedReturnAsync(CreateInvoiceDto dto, InvoiceType returnType)
@@ -58,6 +61,20 @@ public class ReturnService : IReturnService
         if (originalInvoice.CustomerId != dto.CustomerId && originalInvoice.SupplierId != dto.SupplierId)
             throw new InvalidOperationException("العميل أو المورد لا يتطابق مع الفاتورة الأصلية.");
 
+        if (dto.Items == null || !dto.Items.Any())
+            throw new InvalidOperationException("لا يمكن إنشاء مرتجع بدون أصناف.");
+
+        if (dto.Items.Any(i => i.Quantity <= 0))
+            throw new InvalidOperationException("الكميات المرتجعة يجب أن تكون أكبر من الصفر.");
+
+        // Idempotency Check
+        if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+        {
+            var existingReturn = await _context.Invoices.FirstOrDefaultAsync(i => i.IdempotencyKey == dto.IdempotencyKey);
+            if (existingReturn != null)
+                throw new InvalidOperationException($"هذه العملية تم تنفيذها بالفعل. (IdempotencyKey: {dto.IdempotencyKey})");
+        }
+
         if (dto.Items.Any(i => i.OriginalInvoiceItemId == null))
             throw new InvalidOperationException("جميع بنود المرتجع المرجعي يجب أن تحمل OriginalInvoiceItemId");
 
@@ -66,6 +83,8 @@ public class ReturnService : IReturnService
         var branchId = dto.BranchId;
         if (originalInvoice.BranchId != branchId)
             throw new InvalidOperationException("لا يمكن إرجاع فاتورة من فرع مختلف.");
+
+        await _accountingPeriodService.EnsureDateIsOpenAsync(_currentUser.CompanyId!.Value, dto.Date);
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
@@ -79,13 +98,15 @@ public class ReturnService : IReturnService
                 Discount = dto.Discount,
                 Tax = dto.Tax,
                 Status = InvoiceStatus.Confirmed,
-                Paid = dto.Paid,
+                Paid = 0,  // Paid always 0 for returns — settlement created via CreateCustomerReturnSettlementAsync
                 IsInstallment = dto.IsInstallment,
                 Notes = dto.Notes,
                 BranchId = branchId,
                 OriginalInvoiceId = dto.OriginalInvoiceId,
                 ReturnMode = ReturnMode.Referenced,
-                CompanyId = _currentUser.CompanyId!.Value
+                IssueCashRefund = dto.IssueCashRefund,  // Persist for traceability/audit
+                CompanyId = _currentUser.CompanyId!.Value,
+                IdempotencyKey = dto.IdempotencyKey
             };
 
             decimal totalValue = 0;
@@ -128,9 +149,8 @@ public class ReturnService : IReturnService
 
             invoice.TotalValue = totalValue;
 
-            var computedNetTotal = totalValue - dto.Discount + dto.Tax;
-            if (dto.Paid > computedNetTotal)
-                throw new ArgumentException($"المبلغ المدفوع يتجاوز صافي قيمة المرتجع ({computedNetTotal:F2}).");
+            // Paid لا يُستخدم في منطق المرتجعات. القيد المالي يتم دائمًا عبر CreateCustomerReturnSettlementAsync
+            invoice.Paid = 0;
 
             _context.Invoices.Add(invoice);
             await _context.SaveChangesAsync();
@@ -162,6 +182,40 @@ public class ReturnService : IReturnService
                     notes: $"مرتجع مرجعي مرتبط بالفاتورة الأصلية {invoice.OriginalInvoiceId}");
             }
 
+            // إنشاء قيد الإرجاع (CreditNote أو Refund) بناءً على خيار IssueCashRefund
+            var settlementDto = new CreateReceiptDto
+            {
+                PartnerId = invoice.CustomerId ?? invoice.SupplierId ?? 0,
+                Amount = invoice.NetTotal,  // موجب دائمًا
+                Date = invoice.Date,
+                Method = PaymentMethod.Cash,
+                Notes = $"مرتجع فاتورة #{invoice.Id} - {invoice.Notes}",
+                AutoAllocate = false,
+                IdempotencyKey = dto.IdempotencyKey != null ? $"{dto.IdempotencyKey}_settlement" : null
+            };
+
+            if (returnType == InvoiceType.SalesReturn)
+            {
+                await _financeService.CreateCustomerReturnSettlementAsync(
+                    settlementDto,
+                    explicitBranchId: invoice.BranchId,
+                    createCashTransaction: invoice.IssueCashRefund,
+                    returnInvoiceId: invoice.Id);
+            }
+            else if (returnType == InvoiceType.PurchaseReturn)
+            {
+                await _financeService.CreateSupplierReturnSettlementAsync(
+                    settlementDto,
+                    explicitBranchId: invoice.BranchId,
+                    createCashTransaction: invoice.IssueCashRefund,
+                    returnInvoiceId: invoice.Id);
+            }
+
+            // تحديث PaymentStatus = Paid
+            // ملاحظة: PaymentStatus.Paid هنا تعني Fully Settled وليس بالضرورة دفعًا نقديًا.
+            // فاتورة المرتجع دائمًا مسوَّاة بالكامل فور إنشائها أو اعتمادها.
+            invoice.PaymentStatus = PaymentStatus.Paid;
+
             await _outboxService.PublishAsync("InvoiceCreated", new
             {
                 InvoiceId = invoice.Id,
@@ -170,29 +224,6 @@ public class ReturnService : IReturnService
                 Type = returnType,
                 Timestamp = DateTime.UtcNow
             });
-
-            var effectivePaid = Math.Min(invoice.Paid, invoice.NetTotal);
-            if (effectivePaid > 0)
-            {
-                var receiptDto = new CreateReceiptDto
-                {
-                    PartnerId = invoice.CustomerId ?? invoice.SupplierId ?? 0,
-                    Amount = effectivePaid,
-                    Date = invoice.Date,
-                    Method = PaymentMethod.Cash,
-                    Notes = $"معاملة مالية مع الفاتورة المرتجعة رقم {invoice.Id}",
-                    AutoAllocate = false
-                };
-
-                if (returnType == InvoiceType.SalesReturn)
-                {
-                    await _financeService.CreateCustomerRefundAsync(receiptDto, explicitBranchId: invoice.BranchId);
-                }
-                else if (returnType == InvoiceType.PurchaseReturn)
-                {
-                    await _financeService.CreateSupplierRefundAsync(receiptDto, explicitBranchId: invoice.BranchId);
-                }
-            }
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -224,7 +255,24 @@ public class ReturnService : IReturnService
 
         if (dto.BranchId <= 0)
             throw new ArgumentException("معرف الفرع (BranchId) التابع للمرتجع إلزامي ولا يمكن الاعتماد على الفرع الافتراضي.");
+
+        if (dto.Items == null || !dto.Items.Any())
+            throw new InvalidOperationException("لا يمكن إنشاء مرتجع بدون أصناف.");
+
+        if (dto.Items.Any(i => i.Quantity <= 0))
+            throw new InvalidOperationException("الكميات المرتجعة يجب أن تكون أكبر من الصفر.");
+
+        // Idempotency Check
+        if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+        {
+            var existingReturn = await _context.Invoices.FirstOrDefaultAsync(i => i.IdempotencyKey == dto.IdempotencyKey);
+            if (existingReturn != null)
+                throw new InvalidOperationException($"هذه العملية تم تنفيذها بالفعل. (IdempotencyKey: {dto.IdempotencyKey})");
+        }
+
         var branchId = dto.BranchId;
+
+        await _accountingPeriodService.EnsureDateIsOpenAsync(_currentUser.CompanyId!.Value, dto.Date);
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
@@ -237,8 +285,8 @@ public class ReturnService : IReturnService
                 Date = dto.Date,
                 Discount = dto.Discount,
                 Tax = dto.Tax,
-                Status = InvoiceStatus.PendingApproval, // PendingApproval not Confirmed
-                Paid = dto.Paid,
+                Status = InvoiceStatus.PendingApproval,
+                Paid = 0,  // Paid always 0 for returns
                 IsInstallment = dto.IsInstallment,
                 Notes = dto.Notes,
                 BranchId = branchId,
@@ -247,7 +295,9 @@ public class ReturnService : IReturnService
                 RequiresApproval = true,
                 IsApproved = false,
                 OriginalInvoiceId = null,
-                CompanyId = _currentUser.CompanyId!.Value
+                IssueCashRefund = dto.IssueCashRefund,  // Persist for use during ApproveManualReturnAsync
+                CompanyId = _currentUser.CompanyId!.Value,
+                IdempotencyKey = dto.IdempotencyKey
             };
 
             decimal totalValue = 0;
@@ -270,14 +320,13 @@ public class ReturnService : IReturnService
 
             invoice.TotalValue = totalValue;
 
-            var computedNetTotal = totalValue - dto.Discount + dto.Tax;
-            if (dto.Paid > computedNetTotal)
-                throw new ArgumentException($"المبلغ المدفوع يتجاوز صافي قيمة المرتجع ({computedNetTotal:F2}).");
+            // Paid لا يُستخدم في منطق المرتجعات.
+            invoice.Paid = 0;
 
             _context.Invoices.Add(invoice);
             await _context.SaveChangesAsync();
 
-            // No ProcessInvoiceStockAsync or CreateRefundAsync here until approved
+            // لا يتم إنشاء Settlement أو Stock حتى يتم اعتماد المرتجع اليدوي.
 
             await _outboxService.PublishAsync("ManualReturnPendingApproval", new
             {
@@ -311,6 +360,8 @@ public class ReturnService : IReturnService
         if (invoice.Status != InvoiceStatus.PendingApproval)
             throw new InvalidOperationException("حالة الفاتورة تمنع اعتمادها.");
 
+        await _accountingPeriodService.EnsureDateIsOpenAsync(invoice.CompanyId, invoice.Date);
+
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
@@ -337,28 +388,36 @@ public class ReturnService : IReturnService
                 }
             }
 
-            var effectivePaid = Math.Min(invoice.Paid, invoice.NetTotal);
-            if (effectivePaid > 0)
+            // إنشاء قيد الإرجاع بناءً على خيار IssueCashRefund المخزَّن في الفاتورة
+            var settlementDto = new CreateReceiptDto
             {
-                var refundDto = new CreateReceiptDto
-                {
-                    PartnerId = invoice.CustomerId ?? invoice.SupplierId ?? 0,
-                    Amount = effectivePaid,
-                    Date = DateTime.UtcNow,
-                    Method = PaymentMethod.Cash,
-                    Notes = $"اعتماد مرتجع يدوي رقم {invoice.Id}",
-                    AutoAllocate = false
-                };
+                PartnerId = invoice.CustomerId ?? invoice.SupplierId ?? 0,
+                Amount = invoice.NetTotal,  // موجب دائمًا
+                Date = DateTime.UtcNow,
+                Method = PaymentMethod.Cash,
+                Notes = $"اعتماد مرتجع يدوي رقم {invoice.Id}"
+            };
 
-                if (invoice.Type == InvoiceType.SalesReturn)
-                {
-                    await _financeService.CreateCustomerRefundAsync(refundDto, explicitBranchId: invoice.BranchId);
-                }
-                else if (invoice.Type == InvoiceType.PurchaseReturn)
-                {
-                    await _financeService.CreateSupplierRefundAsync(refundDto, explicitBranchId: invoice.BranchId);
-                }
+            if (invoice.Type == InvoiceType.SalesReturn)
+            {
+                await _financeService.CreateCustomerReturnSettlementAsync(
+                    settlementDto,
+                    explicitBranchId: invoice.BranchId,
+                    createCashTransaction: invoice.IssueCashRefund,  // مخزَّن من وقت إنشاء المرتجع
+                    returnInvoiceId: invoice.Id);
             }
+            else if (invoice.Type == InvoiceType.PurchaseReturn)
+            {
+                await _financeService.CreateSupplierReturnSettlementAsync(
+                    settlementDto,
+                    explicitBranchId: invoice.BranchId,
+                    createCashTransaction: invoice.IssueCashRefund,
+                    returnInvoiceId: invoice.Id);
+            }
+
+            // تحديث PaymentStatus للمرتجع
+            // ملاحظة: Paid هنا تعني Fully Settled وليس بالضرورة دفعًا نقديًا.
+            invoice.PaymentStatus = PaymentStatus.Paid;
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();

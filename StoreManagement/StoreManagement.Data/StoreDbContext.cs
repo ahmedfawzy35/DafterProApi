@@ -9,6 +9,7 @@ using StoreManagement.Shared.Entities.Identity;
 using StoreManagement.Shared.Entities.Partners;
 using StoreManagement.Shared.Entities.Configuration;
 using StoreManagement.Shared.Entities.Core;
+using StoreManagement.Shared.Entities.Diagnostics;
 using StoreManagement.Shared.Interfaces;
 
 namespace StoreManagement.Data;
@@ -65,6 +66,8 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
     public DbSet<SupplierPaymentAllocation> SupplierPaymentAllocations => Set<SupplierPaymentAllocation>();
 
+    public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
+
     // ===== الموظفون =====
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
@@ -84,6 +87,7 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     // ===== النظام والإضافات =====
     public DbSet<Plugin> Plugins => Set<Plugin>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<ReconciliationFinding> ReconciliationFindings => Set<ReconciliationFinding>();
 
     // ===== SaaS: الاشتراكات والخطط =====
     public DbSet<Plan> Plans => Set<Plan>();
@@ -270,12 +274,39 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
         // عناصر الفاتورة
         builder.Entity<InvoiceItem>()
             .Property(ii => ii.UnitPrice).HasColumnType("decimal(18,4)");
+        builder.Entity<InvoiceItem>()
+            .Property(ii => ii.Quantity).HasColumnType("decimal(18,4)");
 
         // المنتج
         builder.Entity<Product>()
             .Property(p => p.Price).HasColumnType("decimal(18,4)");
         builder.Entity<Product>()
             .Property(p => p.CostPrice).HasColumnType("decimal(18,4)");
+        // حقول الكمية في المنتج (StockQuantity حُذف في Step 8)
+        builder.Entity<Product>()
+            .Property(p => p.MinimumStock).HasColumnType("decimal(18,4)");
+        builder.Entity<Product>()
+            .Property(p => p.ReorderLevel).HasColumnType("decimal(18,4)");
+
+        // رصيد الفرع (Source of Truth للمخزون)
+        builder.Entity<BranchProductStock>()
+            .Property(s => s.Quantity).HasColumnType("decimal(18,4)");
+        builder.Entity<BranchProductStock>()
+            .Property(s => s.ReservedQuantity).HasColumnType("decimal(18,4)");
+
+        // حركات المخزون
+        builder.Entity<StockTransaction>()
+            .Property(st => st.Quantity).HasColumnType("decimal(18,4)");
+        builder.Entity<StockTransaction>()
+            .Property(st => st.BeforeQuantity).HasColumnType("decimal(18,4)");
+        builder.Entity<StockTransaction>()
+            .Property(st => st.AfterQuantity).HasColumnType("decimal(18,4)");
+
+        // عناصر التسوية والتحويل
+        builder.Entity<StockAdjustmentItem>()
+            .Property(i => i.Quantity).HasColumnType("decimal(18,4)");
+        builder.Entity<StockTransferItem>()
+            .Property(i => i.Quantity).HasColumnType("decimal(18,4)");
 
         // العميل والمورد
         builder.Entity<Customer>()
@@ -468,6 +499,13 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
 
         // تطبيق إعدادات EF من ملفات الإعداد المنفصلة
         builder.ApplyConfigurationsFromAssembly(typeof(StoreDbContext).Assembly);
+
+        // إعداد AccountingPeriod
+        builder.Entity<AccountingPeriod>()
+            .HasIndex(ap => new { ap.CompanyId, ap.StartDate, ap.EndDate })
+            .IsUnique();
+        
+        // يمكن إضافة constraint لمنع التداخل أو التعامل معها برمجياً (Software-level constraint is easier since Overlapping dates constraint needs complex SQL in Some DBs)
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

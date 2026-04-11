@@ -13,11 +13,13 @@ public class SettlementService : ISettlementService
 {
     private readonly StoreDbContext _context;
     private readonly ICurrentUserService _currentUser;
+    private readonly IAccountingPeriodService _accountingPeriodService;
 
-    public SettlementService(StoreDbContext context, ICurrentUserService currentUser)
+    public SettlementService(StoreDbContext context, ICurrentUserService currentUser, IAccountingPeriodService accountingPeriodService)
     {
         _context = context;
         _currentUser = currentUser;
+        _accountingPeriodService = accountingPeriodService;
     }
 
     public async Task<PagedResult<SettlementReadDto>> GetAllAsync(
@@ -94,6 +96,8 @@ public class SettlementService : ISettlementService
 
     public async Task<SettlementReadDto> CreateAsync(CreateSettlementDto dto)
     {
+        await _accountingPeriodService.EnsureDateIsOpenAsync(_currentUser.CompanyId!.Value, dto.Date);
+
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {

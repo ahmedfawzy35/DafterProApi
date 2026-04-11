@@ -137,7 +137,7 @@ public class InventoryController : ControllerBase
     [Authorize(Roles = "admin,accountant")]
     public async Task<ActionResult<ApiResponse<string>>> RegisterInitial(
         [FromQuery] int productId,
-        [FromQuery] double quantity,
+        [FromQuery] decimal quantity,
         [FromQuery] int branchId)
     {
         await _inventoryService.RegisterInitialStockAsync(productId, quantity, branchId);

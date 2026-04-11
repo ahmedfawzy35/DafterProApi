@@ -4,6 +4,7 @@ using StoreManagement.Shared.Entities.Configuration;
 using StoreManagement.Shared.Entities.Inventory;
 using StoreManagement.Shared.Entities.Identity;
 using StoreManagement.Shared.Enums;
+using StoreManagement.Shared.Entities.Partners;
 using System;
 
 namespace StoreManagement.IntegrationTests.Helpers;
@@ -63,6 +64,29 @@ public static class DatabaseSeeder
             Enabled = true
         };
         context.Users.Add(user);
+        context.SaveChanges();
+
+        // 4.5. Customers
+        var customer = new Customer
+        {
+            Id = 1,
+            CompanyId = 1,
+            Name = "Test Customer",
+            Email = "customer@example.com",
+            IsActive = true
+        };
+        context.Customers.Add(customer);
+        context.SaveChanges();
+
+        // 4.6. Suppliers
+        var supplier = new Supplier
+        {
+            Id = 1,
+            CompanyId = 1,
+            Name = "Test Supplier",
+            IsActive = true
+        };
+        context.Suppliers.Add(supplier);
         context.SaveChanges();
 
         // 5. Products

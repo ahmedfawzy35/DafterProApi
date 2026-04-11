@@ -28,7 +28,7 @@ public class StockTransaction : BaseEntity, IBranchEntity
     public StockMovementType MovementType { get; set; }
 
     // الكمية المتحركة
-    public double Quantity { get; set; }
+    public decimal Quantity { get; set; }
 
     // تاريخ حدوث الحركة
     public DateTime Date { get; set; } = DateTime.UtcNow;
@@ -48,10 +48,10 @@ public class StockTransaction : BaseEntity, IBranchEntity
     public StockAdjustmentReason? ReasonType { get; set; }
 
     // الكمية قبل الحركة (Audit)
-    public double BeforeQuantity { get; set; }
+    public decimal BeforeQuantity { get; set; }
 
     // الكمية بعد الحركة (Audit)
-    public double AfterQuantity { get; set; }
+    public decimal AfterQuantity { get; set; }
 
     // معرف المستخدم الذي سجّل الحركة
     public int UserId { get; set; }

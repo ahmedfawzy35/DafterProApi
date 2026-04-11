@@ -206,11 +206,13 @@ builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
 // Business Logic Services (Scoped)
 builder.Services.AddScoped<ICustomerService, CustomerService>();
-builder.Services.AddScoped<ISupplierService, SupplierService>();  // خدمة الموردين المستقلة الجديدة
+builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IReturnService, ReturnService>();
+builder.Services.AddScoped<IReconciliationService, StoreManagement.Infrastructure.Services.ReconciliationService>();
 builder.Services.AddScoped<ICashTransactionService, CashTransactionService>();
 builder.Services.AddScoped<IFinanceService, FinanceService>();
+builder.Services.AddScoped<IAccountingPeriodService, AccountingPeriodService>();
 builder.Services.AddScoped<IShiftService, ShiftService>();
 builder.Services.AddScoped<IAlertService, AlertService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
@@ -301,6 +303,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("StorePolicy", policy =>
         policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 });
+
+builder.Services.AddHostedService<StoreManagement.Server.HostedServices.ReconciliationBackgroundService>();
 
 var app = builder.Build();
 

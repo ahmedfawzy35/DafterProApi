@@ -84,7 +84,7 @@ public class BranchInventoryService : IBranchInventoryService
         }
     }
 
-    public async Task IncreaseStockAsync(int productId, int branchId, double qty)
+    public async Task IncreaseStockAsync(int productId, int branchId, decimal qty)
     {
         if (qty < 0) throw new ArgumentException("الكمية يجب أن تكون موجبة عند زيادة المخزون.");
 
@@ -97,7 +97,7 @@ public class BranchInventoryService : IBranchInventoryService
         await _context.SaveChangesAsync();
     }
 
-    public async Task DecreaseStockAsync(int productId, int branchId, double qty, bool allowNegative = false)
+    public async Task DecreaseStockAsync(int productId, int branchId, decimal qty, bool allowNegative = false)
     {
         if (qty < 0) throw new ArgumentException("الكمية يجب أن تكون موجبة للاستخدام في ميثود الخصم.");
 
@@ -115,7 +115,7 @@ public class BranchInventoryService : IBranchInventoryService
         await _context.SaveChangesAsync();
     }
 
-    public async Task TransferStockAsync(int productId, int fromBranchId, int toBranchId, double qty)
+    public async Task TransferStockAsync(int productId, int fromBranchId, int toBranchId, decimal qty)
     {
         if (fromBranchId == toBranchId) throw new InvalidOperationException("لا يمكن التحويل لنفس الفرع.");
         if (qty <= 0) throw new InvalidOperationException("الكمية المحولة يجب أن تكون موجبة وأكبر من صفر.");
@@ -141,7 +141,7 @@ public class BranchInventoryService : IBranchInventoryService
         }
     }
 
-    public async Task<double> GetAvailableQtyAsync(int productId, int branchId)
+    public async Task<decimal> GetAvailableQtyAsync(int productId, int branchId)
     {
         if (branchId <= 0) return 0;
         
@@ -152,12 +152,39 @@ public class BranchInventoryService : IBranchInventoryService
         return stock == null ? 0 : stock.Quantity - stock.ReservedQuantity;
     }
 
-    public async Task<double> GetTotalStockAsync(int productId)
+    public async Task<decimal> GetTotalStockAsync(int productId)
     {
-        // حساب إجمالي كل الأرصدة لهذا المنتج عبر كل الفروع
         return await _context.BranchProductStocks
             .Where(s => s.ProductId == productId)
             .SumAsync(s => s.Quantity);
+    }
+
+    public async Task<Dictionary<int, (decimal Total, decimal Available)>> GetStockAggregatesForProductsAsync(
+        IEnumerable<int> productIds)
+    {
+        var ids = productIds.ToList();
+        if (!ids.Any()) return new Dictionary<int, (decimal, decimal)>();
+
+        // استعلام واحد لكل المنتجات — يتجنب N+1
+        var rows = await _context.BranchProductStocks
+            .Where(s => ids.Contains(s.ProductId))
+            .GroupBy(s => s.ProductId)
+            .Select(g => new
+            {
+                ProductId = g.Key,
+                Total = g.Sum(s => s.Quantity),
+                Available = g.Sum(s => s.Quantity - s.ReservedQuantity)
+            })
+            .ToListAsync();
+
+        // منتجات بدون أي سجل في BPS → total=0, available=0
+        return ids.ToDictionary(
+            id => id,
+            id =>
+            {
+                var row = rows.FirstOrDefault(r => r.ProductId == id);
+                return row == null ? (0m, 0m) : (row.Total, row.Available);
+            });
     }
 
     public async Task<List<BranchStockDto>> GetStockByProductAsync(int productId)
@@ -248,7 +275,7 @@ public class BranchInventoryService : IBranchInventoryService
                 }
 
                 var stockDict = new Dictionary<(int ProductId, int BranchId), BranchProductStock>();
-                var expectedImpactPerProduct = new Dictionary<int, double>();
+                var expectedImpactPerProduct = new Dictionary<int, decimal>();
 
                 await foreach (var txItem in _context.StockTransactions
                     .Where(st => st.CompanyId == targetCompanyId)
@@ -349,7 +376,7 @@ public class BranchInventoryService : IBranchInventoryService
                 {
                     computedStocksPerProduct.TryGetValue(expected.Key, out var computedTotal);
                     // TODO: migrate to decimal later for better precision guarantees
-                    if (Math.Abs(computedTotal - expected.Value) > 0.001) // دقة الفواصل
+                    if (Math.Abs(computedTotal - expected.Value) > 0.0001m) // دقة عشرية decimal آمنة
                     {
                         var w = $"تحذير: عدم تطابق في رصيد المنتج {expected.Key}. أثر الحركات الإجمالي ({expected.Value}) لا يطابق الرصيد المحسوب للفروع ({computedTotal}).";
                         _logger.LogWarning(w);

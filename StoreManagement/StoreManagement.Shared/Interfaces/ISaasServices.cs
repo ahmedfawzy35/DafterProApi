@@ -261,13 +261,13 @@ public interface IInventoryService
     Task<PagedResult<DTOs.StockTransferReadDto>> GetAllTransfersAsync(DTOs.PaginationQueryDto query);
 
     // Legacy — يُستخدم لتسجيل الرصيد الافتتاحي
-    Task RegisterInitialStockAsync(int productId, double quantity, int branchId);
+    Task RegisterInitialStockAsync(int productId, decimal quantity, int branchId);
 
     // تسجيل الكميات الخاصة بالفواتير (لا تتم إلا من خلال InvoiceService)
-    Task ProcessInvoiceStockAsync(int invoiceId, int invoiceItemId, int productId, double quantity, int branchId, Enums.InvoiceType invoiceType, string notes);
+    Task ProcessInvoiceStockAsync(int invoiceId, int invoiceItemId, int productId, decimal quantity, int branchId, Enums.InvoiceType invoiceType, string notes);
 
     // عكس كميات الفواتير في حالة الإلغاء
-    Task ReverseInvoiceStockAsync(int invoiceId, int invoiceItemId, int productId, double quantity, int branchId, Enums.InvoiceType originalInvoiceType, string notes);
+    Task ReverseInvoiceStockAsync(int invoiceId, int invoiceItemId, int productId, decimal quantity, int branchId, Enums.InvoiceType originalInvoiceType, string notes);
 }
 
 /// <summary>
@@ -396,15 +396,37 @@ public interface IFinanceService
 {
     // ===== المقبوضات من العميل =====
     Task<DTOs.ReceiptReadDto> CreateCustomerReceiptAsync(DTOs.CreateReceiptDto dto, int? explicitBranchId = null);
+
+    /// <summary>
+    /// إنشاء قيد إرجاع في حساب العميل (مرتجع نقدي أو إشعار دائن).
+    /// createCashTransaction = true  → مرتجع نقدي (Amount موجب دائمًا، Kind=Refund).
+    /// createCashTransaction = false → إشعار دائن بدون حركة نقدية (Kind=CreditNote).
+    /// </summary>
+    Task<DTOs.ReceiptReadDto> CreateCustomerReturnSettlementAsync(DTOs.CreateReceiptDto dto, int? explicitBranchId = null, bool createCashTransaction = true, int? returnInvoiceId = null);
+
+    [Obsolete("Use CreateCustomerReturnSettlementAsync instead.")]
     Task<DTOs.ReceiptReadDto> CreateCustomerRefundAsync(DTOs.CreateReceiptDto dto, int? explicitBranchId = null);
+
     Task AllocateCustomerReceiptAsync(DTOs.AllocateReceiptDto dto);
     Task AllocateDirectToInvoiceAsync(int receiptId, int invoiceId, decimal amount);
-    
+    Task VoidCustomerReceiptAsync(int receiptId);
+
     // ===== المدفوعات للمورد =====
     Task<DTOs.ReceiptReadDto> CreateSupplierPaymentAsync(DTOs.CreateReceiptDto dto, int? explicitBranchId = null);
+
+    /// <summary>
+    /// إنشاء قيد إرجاع في حساب المورد (مرتجع نقدي أو إشعار دائن).
+    /// createCashTransaction = true  → مرتجع نقدي (Kind=Refund).
+    /// createCashTransaction = false → إشعار دائن (Kind=CreditNote).
+    /// </summary>
+    Task<DTOs.ReceiptReadDto> CreateSupplierReturnSettlementAsync(DTOs.CreateReceiptDto dto, int? explicitBranchId = null, bool createCashTransaction = true, int? returnInvoiceId = null);
+
+    [Obsolete("Use CreateSupplierReturnSettlementAsync instead.")]
     Task<DTOs.ReceiptReadDto> CreateSupplierRefundAsync(DTOs.CreateReceiptDto dto, int? explicitBranchId = null);
+
     Task AllocateSupplierPaymentAsync(DTOs.AllocateReceiptDto dto);
     Task AllocateDirectToSupplierInvoiceAsync(int paymentId, int invoiceId, decimal amount);
+    Task VoidSupplierPaymentAsync(int paymentId);
 
     // ===== كشوفات وشاشات العميل =====
 
@@ -458,4 +480,16 @@ public interface IAlertService
     Task<PagedResult<DTOs.LowStockAlertDto>> GetLowStockAlertsAsync(DTOs.PaginationQueryDto query, int? branchId = null);
     Task<PagedResult<DTOs.OverdueCustomerAlertDto>> GetOverdueInvoicesAlertsAsync(DTOs.PaginationQueryDto query, int dayThreshold = 30);
     Task<PagedResult<DTOs.HighDebtCustomerAlertDto>> GetHighDebtCustomersAlertsAsync(DTOs.PaginationQueryDto query);
+}
+
+/// <summary>
+/// خدمة الفترات المحاسبية والقفل للعمليات المالية
+/// </summary>
+public interface IAccountingPeriodService
+{
+    // تحقق مركزي لوقاية أي عملية من التنفيذ في فترة مغلقة
+    Task EnsureDateIsOpenAsync(int companyId, DateTime operationDate);
+    
+    // إنشاء فترة جديدة أو إغلاقها
+    // (يمكن استكمال هذه العمليات لاحقاً في لوحة التحكم الإدارية)
 }

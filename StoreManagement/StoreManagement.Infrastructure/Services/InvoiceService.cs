@@ -27,6 +27,7 @@ public class InvoiceService : IInvoiceService
     private readonly IProductService _productService;
     private readonly IFinanceService _financeService;
     private readonly IReturnService _returnService;
+    private readonly IAccountingPeriodService _accountingPeriodService;
 
     public InvoiceService(
         StoreDbContext context,
@@ -35,7 +36,8 @@ public class InvoiceService : IInvoiceService
         IInventoryService inventoryService,
         IProductService productService,
         IFinanceService financeService,
-        IReturnService returnService)
+        IReturnService returnService,
+        IAccountingPeriodService accountingPeriodService)
     {
         _context = context;
         _currentUser = currentUser;
@@ -44,6 +46,7 @@ public class InvoiceService : IInvoiceService
         _productService = productService;
         _financeService = financeService;
         _returnService = returnService;
+        _accountingPeriodService = accountingPeriodService;
     }
 
     public async Task<PagedResult<InvoiceReadDto>> GetAllAsync(
@@ -152,6 +155,8 @@ public class InvoiceService : IInvoiceService
             .FirstOrDefaultAsync(c => c.Id == _currentUser.CompanyId)
             ?? throw new InvalidOperationException("الشركة غير موجودة");
 
+        await _accountingPeriodService.EnsureDateIsOpenAsync(company.Id, dto.Date);
+
         var invoiceStatus = (InvoiceStatus)(dto.Status ?? (int)InvoiceStatus.Confirmed);
 
         if (invoiceStatus == InvoiceStatus.Draft && dto.Paid > 0)
@@ -164,6 +169,28 @@ public class InvoiceService : IInvoiceService
         if (dto.BranchId <= 0)
             throw new ArgumentException("معرف الفرع (BranchId) التابع للفاتورة إلزامي ولا يمكن الاعتماد على الفرع الافتراضي.");
             
+        // Domain Validation Guards
+        if (invoiceTypeEnum == InvoiceType.Sale && dto.CustomerId == null)
+            throw new InvalidOperationException("يجب تحديد العميل (CustomerId) في فاتورة المبيعات.");
+            
+        if (invoiceTypeEnum == InvoiceType.Purchase && dto.SupplierId == null)
+            throw new InvalidOperationException("يجب تحديد المورد (SupplierId) في فاتورة المشتريات.");
+
+        if (dto.Items == null || !dto.Items.Any())
+            throw new InvalidOperationException("لا يمكن إنشاء فاتورة بدون أصناف.");
+
+        // Idempotency Check
+        if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+        {
+            /// Check if invoice already exists with this key
+            var existingInvoice = await _context.Invoices.FirstOrDefaultAsync(i => i.IdempotencyKey == dto.IdempotencyKey);
+            if (existingInvoice != null)
+            {
+                // إذا وجدنا الفاتورة نُرجعها أو نرفع خطأ لتجنب التكرار
+                throw new InvalidOperationException($"هذه العملية تم تنفيذها بالفعل. (IdempotencyKey: {dto.IdempotencyKey})");
+            }
+        }
+
         var branchId = dto.BranchId;
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -179,7 +206,8 @@ public class InvoiceService : IInvoiceService
                 Notes = dto.Notes,
                 BranchId = branchId,
                 OriginalInvoiceId = dto.OriginalInvoiceId,
-                CompanyId = _currentUser.CompanyId!.Value
+                CompanyId = _currentUser.CompanyId!.Value,
+                IdempotencyKey = dto.IdempotencyKey
             };
 
             decimal totalValue = 0;
@@ -188,6 +216,12 @@ public class InvoiceService : IInvoiceService
 
             foreach (var itemDto in dto.Items)
             {
+                if (itemDto.Quantity <= 0)
+                    throw new InvalidOperationException($"الكمية يجب أن تكون أكبر من الصفر للصنف رقم {itemDto.ProductId}.");
+                    
+                if (itemDto.UnitPrice < 0)
+                    throw new InvalidOperationException($"السعر لا يمكن أن يكون سالباً للصنف رقم {itemDto.ProductId}.");
+
                 var product = await _context.Products.FindAsync(itemDto.ProductId)
                     ?? throw new KeyNotFoundException($"المنتج رقم {itemDto.ProductId} غير موجود");
 
@@ -311,6 +345,8 @@ public class InvoiceService : IInvoiceService
         var invoice = await _context.Invoices.FirstOrDefaultAsync(i => i.Id == id && i.CompanyId == _currentUser.CompanyId)
             ?? throw new KeyNotFoundException($"الفاتورة رقم {id} غير موجودة");
 
+        await _accountingPeriodService.EnsureDateIsOpenAsync(invoice.CompanyId, invoice.Date);
+
         if (invoice.Status != InvoiceStatus.Draft)
         {
             throw new InvalidOperationException("لا يمكن حذف فاتورة غير مسودة. استخدم Cancellation (الإلغاء).");
@@ -328,6 +364,8 @@ public class InvoiceService : IInvoiceService
             .Include(i => i.SupplierAllocations) 
             .FirstOrDefaultAsync(i => i.Id == id && i.CompanyId == _currentUser.CompanyId)
             ?? throw new KeyNotFoundException($"الفاتورة رقم {id} غير موجودة");
+
+        await _accountingPeriodService.EnsureDateIsOpenAsync(invoice.CompanyId, invoice.Date);
 
         if (invoice.Status == InvoiceStatus.Cancelled)
             throw new InvalidOperationException("الفاتورة ملغية بالفعل.");
@@ -389,6 +427,33 @@ public class InvoiceService : IInvoiceService
 
             invoice.AllocatedAmount = 0;
             invoice.PaymentStatus = PaymentStatus.Unpaid;
+
+            // ===== Safe Cancellation for Returns =====
+            // If this invoice is a return, void its strictly owned financial receipt
+            if (invoice.Type == InvoiceType.SalesReturn)
+            {
+                var returnReceipt = await _context.CustomerReceipts.FirstOrDefaultAsync(r => 
+                    r.FinancialSourceType == FinancialSourceType.Return && 
+                    r.FinancialSourceId == invoice.Id && 
+                    r.FinancialStatus == FinancialStatus.Active);
+                    
+                if (returnReceipt != null)
+                {
+                    await _financeService.VoidCustomerReceiptAsync(returnReceipt.Id);
+                }
+            }
+            else if (invoice.Type == InvoiceType.PurchaseReturn)
+            {
+                var returnPayment = await _context.SupplierPayments.FirstOrDefaultAsync(p => 
+                    p.FinancialSourceType == FinancialSourceType.Return && 
+                    p.FinancialSourceId == invoice.Id && 
+                    p.FinancialStatus == FinancialStatus.Active);
+                    
+                if (returnPayment != null)
+                {
+                    await _financeService.VoidSupplierPaymentAsync(returnPayment.Id);
+                }
+            }
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();

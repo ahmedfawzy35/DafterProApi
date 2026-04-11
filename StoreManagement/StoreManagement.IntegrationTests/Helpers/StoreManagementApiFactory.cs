@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using StoreManagement.Data;
 using StoreManagement.Shared.Entities.Identity;
+using StoreManagement.Shared.Interfaces;
 
 namespace StoreManagement.IntegrationTests.Helpers;
 
@@ -36,6 +37,9 @@ public class StoreManagementApiFactory : WebApplicationFactory<Program>
             {
                 options.UseSqlite(_connection);
             });
+
+            // 1.5 Register mock Current User for service tests
+            services.AddScoped<ICurrentUserService, TestCurrentUserService>();
 
             // 2. تسجيل Identity Stores لأننا حذفناها من Program.cs في بيئة الـ Testing
             services.AddIdentityCore<User>()

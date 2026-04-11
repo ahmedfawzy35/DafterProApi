@@ -22,11 +22,13 @@ public class CashTransactionService : ICashTransactionService
 {
     private readonly StoreDbContext _context;
     private readonly ICurrentUserService _currentUser;
+    private readonly IAccountingPeriodService _accountingPeriodService;
 
-    public CashTransactionService(StoreDbContext context, ICurrentUserService currentUser)
+    public CashTransactionService(StoreDbContext context, ICurrentUserService currentUser, IAccountingPeriodService accountingPeriodService)
     {
         _context = context;
         _currentUser = currentUser;
+        _accountingPeriodService = accountingPeriodService;
     }
 
     public async Task<PagedResult<CashTransactionReadDto>> GetAllAsync(
@@ -137,6 +139,8 @@ public class CashTransactionService : ICashTransactionService
 
     public async Task<CashTransactionReadDto> CreateAsync(CreateCashTransactionDto dto)
     {
+        await _accountingPeriodService.EnsureDateIsOpenAsync(_currentUser.CompanyId!.Value, dto.Date);
+
         var transaction = new CashTransaction
         {
             Type = (TransactionType)dto.Type,
@@ -160,6 +164,12 @@ public class CashTransactionService : ICashTransactionService
         var transaction = await _context.CashTransactions.FirstOrDefaultAsync(t => t.Id == id && t.CompanyId == _currentUser.CompanyId)
             ?? throw new KeyNotFoundException($"المعاملة رقم {id} غير موجودة");
 
+        await _accountingPeriodService.EnsureDateIsOpenAsync(transaction.CompanyId, transaction.Date);
+        if (transaction.Date != dto.Date)
+        {
+            await _accountingPeriodService.EnsureDateIsOpenAsync(transaction.CompanyId, dto.Date);
+        }
+
         transaction.Type = (TransactionType)dto.Type;
         transaction.SourceType = (TransactionSource)dto.SourceType;
         transaction.Value = dto.Value;
@@ -174,6 +184,8 @@ public class CashTransactionService : ICashTransactionService
     {
         var transaction = await _context.CashTransactions.FirstOrDefaultAsync(t => t.Id == id && t.CompanyId == _currentUser.CompanyId)
             ?? throw new KeyNotFoundException($"المعاملة رقم {id} غير موجودة");
+
+        await _accountingPeriodService.EnsureDateIsOpenAsync(transaction.CompanyId, transaction.Date);
 
         _context.CashTransactions.Remove(transaction);
         await _context.SaveChangesAsync();

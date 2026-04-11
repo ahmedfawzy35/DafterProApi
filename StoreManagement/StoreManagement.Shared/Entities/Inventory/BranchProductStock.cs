@@ -25,12 +25,12 @@ public class BranchProductStock
     public int BranchId { get; set; }
     public Branch Branch { get; set; } = null!;
 
-    // الرصيد الفعلي (نستخدم double للحفاظ على التوافق مع الأنظمة السابقة التي تعتمد على مزدوج، مع خطة لتحويلها لـ decimal لاحقاً)
-    public double Quantity { get; set; } = 0;
+    // الرصيد الفعلي — decimal(18,4) لضمان الدقة الكاملة في الكميات الكسرية
+    public decimal Quantity { get; set; } = 0;
 
     // الكمية المحجوزة لعملية معلقة (غير مستخدمة حالياً في الـ Logic لكن محجوزة للاستخدام المستقبلي)
     // وضعنا قيداً في قاعدة البيانات لمنع قيم سالبة هنا.
-    public double ReservedQuantity { get; set; } = 0;
+    public decimal ReservedQuantity { get; set; } = 0;
 
     // Concurrency Token لمنع الـ Race conditions
     [Timestamp]

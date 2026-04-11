@@ -15,7 +15,7 @@ public class StockAdjustmentItem : BaseEntity
     public Product Product { get; set; } = null!;
     
     // دلتا الكمية (موجب مضاف، سالب مخصوم)
-    public double Quantity { get; set; } 
+    public decimal Quantity { get; set; } 
     
     public StockAdjustmentReason ReasonType { get; set; }
 }

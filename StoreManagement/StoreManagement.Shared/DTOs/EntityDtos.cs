@@ -465,8 +465,8 @@ public class CreateProductDto
     public string? Description { get; set; }
     public string? Brand { get; set; }
     public int? CategoryId { get; set; }
-    public double MinimumStock { get; set; }
-    public double ReorderLevel { get; set; }
+    public decimal MinimumStock { get; set; }
+    public decimal ReorderLevel { get; set; }
     public bool IsSellable { get; set; } = true;
     public bool IsPurchasable { get; set; } = true;
 
@@ -485,8 +485,8 @@ public class UpdateProductDto
     public string? Description { get; set; }
     public string? Brand { get; set; }
     public int? CategoryId { get; set; }
-    public double MinimumStock { get; set; }
-    public double ReorderLevel { get; set; }
+    public decimal MinimumStock { get; set; }
+    public decimal ReorderLevel { get; set; }
     public bool IsActive { get; set; } = true;
     public bool IsSellable { get; set; } = true;
     public bool IsPurchasable { get; set; } = true;
@@ -502,9 +502,26 @@ public class ProductReadDto
     public string Name { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public decimal CostPrice { get; set; }
-    public double StockQuantity { get; set; }
-    public double MinimumStock { get; set; }
-    public double ReorderLevel { get; set; }
+
+    /// <summary>
+    /// [DEPRECATED - Transitional] = TotalStockQuantity. سيُحذف في Step 9.
+    /// استخدم TotalStockQuantity أو AvailableStockQuantity بدلاً منه.
+    /// </summary>
+    [Obsolete("Use TotalStockQuantity or AvailableStockQuantity instead. This field will be removed in a future release.")]
+    public decimal StockQuantity { get; set; }
+
+    /// <summary>
+    /// إجمالي الكمية عبر جميع الفروع (SUM of BranchProductStock.Quantity).
+    /// </summary>
+    public decimal TotalStockQuantity { get; set; }
+
+    /// <summary>
+    /// الكمية المتاحة للبيع عبر جميع الفروع = TotalStock - SUM(ReservedQuantity).
+    /// </summary>
+    public decimal AvailableStockQuantity { get; set; }
+
+    public decimal MinimumStock { get; set; }
+    public decimal ReorderLevel { get; set; }
     public string Unit { get; set; } = string.Empty;
     public string? SKU { get; set; }
     public string? Description { get; set; }
@@ -526,7 +543,17 @@ public class ProductSummaryDto
 {
     public int ProductId { get; set; }
     public string Name { get; set; } = string.Empty;
-    public double CurrentStock { get; set; }
+
+    /// <summary>إجمالي المخزون عبر جميع الفروع.</summary>
+    public decimal TotalStockQuantity { get; set; }
+
+    /// <summary>الكمية المتاحة = الإجمالي - المحجوز (عبر جميع الفروع).</summary>
+    public decimal AvailableStockQuantity { get; set; }
+
+    /// <summary>[DEPRECATED] = TotalStockQuantity. سيُحذف مستقبلاً.</summary>
+    [Obsolete("Use TotalStockQuantity instead.")]
+    public decimal CurrentStock { get; set; }
+
     public decimal CurrentCost { get; set; }
     public decimal CurrentPrice { get; set; }
     public DateTime? LastMovementDate { get; set; }
@@ -566,13 +593,15 @@ public class CreateInvoiceDto
     public string? Notes { get; set; }
     public int? ReturnMode { get; set; }
     public string? ReturnReason { get; set; }
+    public bool IssueCashRefund { get; set; }
+    public string? IdempotencyKey { get; set; }
     public List<CreateInvoiceItemDto> Items { get; set; } = [];
 }
 
 public class CreateInvoiceItemDto
 {
     public int ProductId { get; set; }
-    public double Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public int? OriginalInvoiceItemId { get; set; }
 }
@@ -607,7 +636,7 @@ public class InvoiceItemReadDto
     public int Id { get; set; }
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
-    public double Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal Subtotal { get; set; }
     public int? OriginalInvoiceItemId { get; set; }
@@ -693,7 +722,7 @@ public class DashboardStatsDto
 {
     public decimal TodaySalesToal { get; set; }
     public decimal TodayExpensesTotal { get; set; }
-    public double TodayInvoicesCount { get; set; }
+    public int TodayInvoicesCount { get; set; }
     public decimal MonthlySalesTotal { get; set; }
     public decimal TotalCustomerDebts { get; set; }
     public decimal TotalSupplierDebts { get; set; }
@@ -705,7 +734,7 @@ public class TopProductDto
 {
     public int ProductId { get; set; }
     public string Name { get; set; } = string.Empty;
-    public double QuantitySold { get; set; }
+    public decimal QuantitySold { get; set; }
     public decimal Revenue { get; set; }
 }
 
@@ -765,7 +794,7 @@ public class CreateStockAdjustmentItemDto
 {
     public int ProductId { get; set; }
     // (+) لإضافة بضاعة، (-) لخصم بضاعة مقبولة بدلاً من تحديد IN/OUT كنص
-    public double Quantity { get; set; } 
+    public decimal Quantity { get; set; } 
     public int ReasonType { get; set; }
 }
 
@@ -783,7 +812,7 @@ public class StockAdjustmentItemReadDto
 {
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
-    public double Quantity { get; set; }
+    public decimal Quantity { get; set; }
     public string ReasonType { get; set; } = string.Empty;
 }
 
@@ -798,7 +827,7 @@ public class CreateStockTransferDto
 public class CreateStockTransferItemDto
 {
     public int ProductId { get; set; }
-    public double Quantity { get; set; } // يجب أن تكون قيمة موجبة
+    public decimal Quantity { get; set; } // يجب أن تكون قيمة موجبة
 }
 
 public class StockTransferReadDto
@@ -816,7 +845,7 @@ public class StockTransferItemReadDto
 {
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
-    public double Quantity { get; set; }
+    public decimal Quantity { get; set; }
 }
 
 public class StockTransactionReadDto
@@ -824,9 +853,9 @@ public class StockTransactionReadDto
     public int Id { get; set; }
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
-    public double Quantity { get; set; }
-    public double BeforeQuantity { get; set; }
-    public double AfterQuantity { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal BeforeQuantity { get; set; }
+    public decimal AfterQuantity { get; set; }
     public string Type { get; set; } = string.Empty;
     public string? ReferenceType { get; set; }
     public string? ReasonType { get; set; }
@@ -1015,6 +1044,7 @@ public class CreateSettlementDto
     public decimal Amount { get; set; }
     public string? Notes { get; set; }
     public DateTime Date { get; set; } = DateTime.UtcNow;
+    public string? IdempotencyKey { get; set; }
 }
 
 public class SettlementReadDto
@@ -1108,6 +1138,7 @@ public class CreateReceiptDto
     public string? Notes { get; set; }
     // إذا كانت true يتم عمل Auto-Allocate على أقدم الفواتير المفتوحة مباشرة
     public bool AutoAllocate { get; set; } = false;
+    public string? IdempotencyKey { get; set; }
 }
 
 public class ManualAllocationDto
@@ -1163,9 +1194,9 @@ public class LowStockAlertDto
     public string ProductName { get; set; } = string.Empty;
     public string? SKU { get; set; }
     public string Unit { get; set; } = string.Empty;
-    public double Quantity { get; set; }
-    public double MinimumStock { get; set; }
-    public double ShortageQuantity { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal MinimumStock { get; set; }
+    public decimal ShortageQuantity { get; set; }
 }
 
 public class OverdueCustomerAlertDto

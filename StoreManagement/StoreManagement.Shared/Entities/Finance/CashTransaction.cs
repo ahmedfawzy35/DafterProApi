@@ -41,4 +41,18 @@ public class CashTransaction : BaseEntity, IBranchEntity
 
     // علاقة الوردية
     public CashRegisterShift? Shift { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Timestamp]
+    public byte[]? RowVersion { get; set; }
+
+    // ===== ERP Traceability & Financial Integrity =====
+    public FinancialStatus FinancialStatus { get; set; } = FinancialStatus.Active;
+    public FinancialSourceType? FinancialSourceType { get; set; }
+    public int? FinancialSourceId { get; set; }
+    public string? IdempotencyKey { get; set; }
+    
+    // Cancellation tracking
+    public int? ReversalOfId { get; set; } 
+    public int? CancelledByUserId { get; set; }
+    public DateTime? CancelledAt { get; set; }
 }

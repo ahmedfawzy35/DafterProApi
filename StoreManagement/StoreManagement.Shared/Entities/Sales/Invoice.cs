@@ -77,6 +77,13 @@ public class Invoice : BaseEntity, IBranchEntity
     public ReturnMode? ReturnMode { get; set; }
     public string? ReturnReason { get; set; }
 
+    /// <summary>
+    /// يُحدد إذا كان المرتجع يُنشئ استرداد نقدي فعلي (Refund) أم إشعار دائن فقط (CreditNote).
+    /// القيمة الافتراضية false تعني CreditNote (بدون حركة خزنة).
+    /// يتم تخزين هذا القرار لاستخدامه عند اعتماد المرتجعات اليدوية.
+    /// </summary>
+    public bool IssueCashRefund { get; set; } = false;
+
     // ===== حقول Approval Workflow ======
     public bool RequiresApproval { get; set; } = false;
     public bool IsApproved { get; set; } = false;
@@ -93,6 +100,14 @@ public class Invoice : BaseEntity, IBranchEntity
 
     // الإيصالات المخصصة من طرف المورد
     public ICollection<SupplierPaymentAllocation> SupplierAllocations { get; set; } = [];
+
+    [System.ComponentModel.DataAnnotations.Timestamp]
+    public byte[]? RowVersion { get; set; }
+
+    // ===== ERP Traceability & Financial Integrity =====
+    public string? IdempotencyKey { get; set; } 
+    public int? CancelledByUserId { get; set; }
+    public DateTime? CancelledAt { get; set; }
 }
 
 /// <summary>
@@ -115,13 +130,13 @@ public class InvoiceItem
     public Product Product { get; set; } = null!;
 
     // الكمية
-    public double Quantity { get; set; }
+    public decimal Quantity { get; set; }
 
     // سعر الوحدة عند البيع/الشراء
     public decimal UnitPrice { get; set; }
 
     // الإجمالي الفرعي
-    public decimal Subtotal => (decimal)Quantity * UnitPrice;
+    public decimal Subtotal => Quantity * UnitPrice;
 
     // ===== ربط سطر المرتجع بالسطر الأصلي =====
     public int? OriginalInvoiceItemId { get; set; }

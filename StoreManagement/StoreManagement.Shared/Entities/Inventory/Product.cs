@@ -18,14 +18,13 @@ public class Product : BaseEntity
     // سعر الشراء (لحساب الأرباح)
     public decimal CostPrice { get; set; }
 
-    // الكمية المتاحة في المخزون
-    public double StockQuantity { get; set; } = 0;
+
 
     // أدنى مستوى للمخزون (حد إشعار تدني المخزون)
-    public double MinimumStock { get; set; } = 0;
+    public decimal MinimumStock { get; set; } = 0;
 
     // حد إعادة الطلب (Reorder Level) لتنبيه المشتريات
-    public double ReorderLevel { get; set; } = 0;
+    public decimal ReorderLevel { get; set; } = 0;
 
     // وحدة القياس (قطعة، كجم، متر، إلخ)
     public string Unit { get; set; } = "قطعة";

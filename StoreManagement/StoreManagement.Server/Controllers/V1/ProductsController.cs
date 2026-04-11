@@ -26,6 +26,7 @@ public class ProductsController : ControllerBase
     private readonly IBarcodeService _barcodeService;
     private readonly IProductService _productService;
     private readonly IInventoryService _inventoryService;
+    private readonly IBranchInventoryService _branchInventoryService;
     private readonly IFileStorageService _fileStorageService;
     private readonly IAuditLogService _auditLogService;
 
@@ -36,6 +37,7 @@ public class ProductsController : ControllerBase
         IBarcodeService barcodeService,
         IProductService productService,
         IInventoryService inventoryService,
+        IBranchInventoryService branchInventoryService,
         IFileStorageService fileStorageService,
         IAuditLogService auditLogService)
     {
@@ -45,6 +47,7 @@ public class ProductsController : ControllerBase
         _barcodeService = barcodeService;
         _productService = productService;
         _inventoryService = inventoryService;
+        _branchInventoryService = branchInventoryService;
         _fileStorageService = fileStorageService;
         _auditLogService = auditLogService;
     }
@@ -60,20 +63,27 @@ public class ProductsController : ControllerBase
         [FromQuery] string? brand,
         [FromQuery] bool? isActive)
     {
+        var companyId = _currentUser.CompanyId!.Value;
+
+        // تحديد scope الفرع بناءً على دور المستخدم (Q1-A)
+        bool isAdminScope = _currentUser.IsSuperAdmin
+            || _currentUser.Roles.Contains("admin")
+            || _currentUser.Roles.Contains("owner");
+        int? scopedBranchId = isAdminScope ? null : _currentUser.BranchId;
+
+        // بناء استعلام المنتجات الأساسي
         var productsQuery = _context.Products
             .Include(p => p.ProductImages)
             .Include(p => p.Category)
+            .Where(p => p.CompanyId == companyId)
             .AsQueryable();
 
-        if (isLowStock == true)
-            productsQuery = productsQuery.Where(p => p.StockQuantity <= p.MinimumStock);
-            
         if (categoryId.HasValue)
             productsQuery = productsQuery.Where(p => p.CategoryId == categoryId.Value);
-            
+
         if (!string.IsNullOrWhiteSpace(brand))
             productsQuery = productsQuery.Where(p => p.Brand == brand);
-            
+
         if (isActive.HasValue)
             productsQuery = productsQuery.Where(p => p.IsActive == isActive.Value);
 
@@ -81,7 +91,24 @@ public class ProductsController : ControllerBase
             productsQuery = productsQuery.Where(p =>
                 p.Name.Contains(query.Search) ||
                 p.Barcode.Contains(query.Search) ||
-                (p.SKU != null && p.SKU.Contains(query.Search))); // دعم البحث بالاسم أو الباركود أو SKU
+                (p.SKU != null && p.SKU.Contains(query.Search)));
+
+        // فلتر isLowStock — مبني على BranchProductStock aggregate
+        if (isLowStock == true)
+        {
+            // جلب IDs المنتجات التي يكون مخزونها (حسب scope) أقل من MinimumStock
+            var lowStockIds = await _context.BranchProductStocks
+                .Where(bps => bps.CompanyId == companyId
+                    && (scopedBranchId == null || bps.BranchId == scopedBranchId)
+                    && bps.Product.IsActive
+                    && bps.Product.MinimumStock > 0)
+                .GroupBy(bps => new { bps.ProductId, bps.Product.MinimumStock })
+                .Where(g => g.Sum(bps => bps.Quantity) <= g.Key.MinimumStock)
+                .Select(g => g.Key.ProductId)
+                .ToListAsync();
+
+            productsQuery = productsQuery.Where(p => lowStockIds.Contains(p.Id));
+        }
 
         var totalCount = await productsQuery.CountAsync();
 
@@ -89,34 +116,21 @@ public class ProductsController : ControllerBase
             .OrderBy(p => p.Name)
             .Skip((query.PageNumber - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(p => new ProductReadDto
-            {
-                Id = p.Id,
-                Name = p.Name,
-                Price = p.Price,
-                CostPrice = p.CostPrice,
-                StockQuantity = p.StockQuantity,
-                MinimumStock = p.MinimumStock,
-                ReorderLevel = p.ReorderLevel,
-                Unit = p.Unit,
-                SKU = p.SKU,
-                Description = p.Description,
-                Brand = p.Brand,
-                CategoryId = p.CategoryId,
-                CategoryName = p.Category != null ? p.Category.Name : null,
-                IsActive = p.IsActive,
-                IsSellable = p.IsSellable,
-                IsPurchasable = p.IsPurchasable,
-                ThumbnailUrl = p.ProductImages.Where(i => i.IsThumbnail).Select(i => i.ImageUrl).FirstOrDefault(),
-                Barcode = p.Barcode,
-                BarcodeType = p.BarcodeType.ToString(),
-                BarcodeFormat = p.BarcodeFormat.ToString()
-            })
             .ToListAsync();
+
+        // Bulk stock aggregates — استعلام واحد لكل المنتجات (يتجنب N+1)
+        var productIds = products.Select(p => p.Id);
+        var stockAggregates = await _branchInventoryService.GetStockAggregatesForProductsAsync(productIds);
+
+        var dtos = products.Select(p =>
+        {
+            stockAggregates.TryGetValue(p.Id, out var agg);
+            return MapToReadDto(p, agg.Total, agg.Available);
+        }).ToList();
 
         var result = new PagedResult<ProductReadDto>
         {
-            Items = products,
+            Items = dtos,
             PageNumber = query.PageNumber,
             PageSize = query.PageSize,
             TotalCount = totalCount
@@ -139,7 +153,11 @@ public class ProductsController : ControllerBase
         if (product is null)
             return NotFound(ApiResponse<ProductReadDto>.Failure("المنتج غير موجود"));
 
-        return Ok(ApiResponse<ProductReadDto>.SuccessResult(MapToReadDto(product)));
+        var totalStock = await _branchInventoryService.GetTotalStockAsync(product.Id);
+        var stocksByBranch = await _branchInventoryService.GetStockByProductAsync(product.Id);
+        var available = stocksByBranch.Sum(s => s.AvailableQuantity);
+
+        return Ok(ApiResponse<ProductReadDto>.SuccessResult(MapToReadDto(product, totalStock, available)));
     }
 
     /// <summary>
@@ -148,7 +166,6 @@ public class ProductsController : ControllerBase
     [HttpGet("by-barcode/{barcode}")]
     public async Task<ActionResult<ApiResponse<ProductReadDto>>> GetByBarcode(string barcode)
     {
-        // تأكيد إضافي للأمان (Multi-Tenant) حتى مع وجود Global Filters
         var companyId = _currentUser.CompanyId.Value;
         
         var product = await _context.Products
@@ -159,7 +176,11 @@ public class ProductsController : ControllerBase
         if (product is null)
             return NotFound(ApiResponse<ProductReadDto>.Failure("لا يوجد منتج بهذا الباركود"));
 
-        return Ok(ApiResponse<ProductReadDto>.SuccessResult(MapToReadDto(product)));
+        var totalStock = await _branchInventoryService.GetTotalStockAsync(product.Id);
+        var stocksByBranch = await _branchInventoryService.GetStockByProductAsync(product.Id);
+        var available = stocksByBranch.Sum(s => s.AvailableQuantity);
+
+        return Ok(ApiResponse<ProductReadDto>.SuccessResult(MapToReadDto(product, totalStock, available)));
     }
 
     /// <summary>
@@ -432,29 +453,36 @@ public class ProductsController : ControllerBase
 
     // ===== Helper Methods =====
 
-    private ProductReadDto MapToReadDto(Product product) => new()
+    private ProductReadDto MapToReadDto(Product product, decimal totalStock = 0m, decimal availableStock = 0m)
     {
-        Id = product.Id,
-        Name = product.Name,
-        Price = product.Price,
-        CostPrice = product.CostPrice,
-        StockQuantity = product.StockQuantity,
-        MinimumStock = product.MinimumStock,
-        ReorderLevel = product.ReorderLevel,
-        Unit = product.Unit,
-        SKU = product.SKU,
-        Description = product.Description,
-        Brand = product.Brand,
-        CategoryId = product.CategoryId,
-        CategoryName = product.Category?.Name,
-        IsActive = product.IsActive,
-        IsSellable = product.IsSellable,
-        IsPurchasable = product.IsPurchasable,
-        ThumbnailUrl = product.ProductImages?.FirstOrDefault(i => i.IsThumbnail)?.ImageUrl,
-        Barcode = product.Barcode,
-        BarcodeType = product.BarcodeType.ToString(),
-        BarcodeFormat = product.BarcodeFormat.ToString()
-    };
+#pragma warning disable CS0618 // StockQuantity is intentionally kept as transitional alias
+        return new ProductReadDto
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Price = product.Price,
+            CostPrice = product.CostPrice,
+            TotalStockQuantity = totalStock,
+            AvailableStockQuantity = availableStock,
+            StockQuantity = totalStock, // Transitional alias = TotalStockQuantity
+            MinimumStock = product.MinimumStock,
+            ReorderLevel = product.ReorderLevel,
+            Unit = product.Unit,
+            SKU = product.SKU,
+            Description = product.Description,
+            Brand = product.Brand,
+            CategoryId = product.CategoryId,
+            CategoryName = product.Category?.Name,
+            IsActive = product.IsActive,
+            IsSellable = product.IsSellable,
+            IsPurchasable = product.IsPurchasable,
+            ThumbnailUrl = product.ProductImages?.FirstOrDefault(i => i.IsThumbnail)?.ImageUrl,
+            Barcode = product.Barcode,
+            BarcodeType = product.BarcodeType.ToString(),
+            BarcodeFormat = product.BarcodeFormat.ToString()
+        };
+#pragma warning restore CS0618
+    }
 
     // ===== نقاط النهاية الإضافية (Extra Endpoints) =====
 
@@ -475,17 +503,26 @@ public class ProductsController : ControllerBase
             .OrderByDescending(st => st.Date)
             .FirstOrDefaultAsync();
 
+        // Stock aggregates من BranchProductStock (Single Source of Truth)
+        var stockByBranch = await _branchInventoryService.GetStockByProductAsync(id);
+        var totalStock = stockByBranch.Sum(s => s.Quantity);
+        var availableStock = stockByBranch.Sum(s => s.AvailableQuantity);
+
+#pragma warning disable CS0618
         var summary = new ProductSummaryDto
         {
             ProductId = product.Id,
             Name = product.Name,
-            CurrentStock = product.StockQuantity,
+            TotalStockQuantity = totalStock,
+            AvailableStockQuantity = availableStock,
+            CurrentStock = totalStock,       // Transitional alias
             CurrentCost = product.CostPrice,
             CurrentPrice = product.Price,
             LastMovementDate = lastTransaction?.Date,
             CategoryName = product.Category?.Name,
             Brand = product.Brand
         };
+#pragma warning restore CS0618
 
         return Ok(ApiResponse<ProductSummaryDto>.SuccessResult(summary));
     }
@@ -535,29 +572,159 @@ public class ProductsController : ControllerBase
     [HttpGet("low-stock")]
     public async Task<ActionResult<ApiResponse<List<ProductReadDto>>>> GetLowStock()
     {
-        var companyId = _currentUser.CompanyId.Value;
-        var products = await _context.Products
-            .Include(p => p.Category)
-            .Include(p => p.ProductImages)
-            .Where(p => p.CompanyId == companyId && p.IsActive && p.StockQuantity <= p.MinimumStock)
-            .Select(p => MapToReadDto(p))
+        var companyId = _currentUser.CompanyId!.Value;
+
+        // Q1-A: Admin → إجمالي الفروع | Branch User → فرعه فقط
+        bool isAdminScope = _currentUser.IsSuperAdmin
+            || _currentUser.Roles.Contains("admin")
+            || _currentUser.Roles.Contains("owner");
+        int? scopedBranchId = isAdminScope ? null : _currentUser.BranchId;
+
+        var aggregates = await _context.BranchProductStocks
+            .Where(bps => bps.CompanyId == companyId
+                && bps.Product.IsActive
+                && bps.Product.MinimumStock > 0
+                && (scopedBranchId == null || bps.BranchId == scopedBranchId))
+            .GroupBy(bps => new
+            {
+                bps.ProductId,
+                bps.Product.Name,
+                bps.Product.SKU,
+                bps.Product.Barcode,
+                bps.Product.Price,
+                bps.Product.CostPrice,
+                bps.Product.Unit,
+                bps.Product.MinimumStock,
+                bps.Product.ReorderLevel,
+                bps.Product.IsActive,
+                bps.Product.IsSellable,
+                bps.Product.IsPurchasable,
+                bps.Product.CategoryId
+            })
+            .Select(g => new
+            {
+                g.Key.ProductId,
+                g.Key.Name,
+                g.Key.SKU,
+                g.Key.Barcode,
+                g.Key.Price,
+                g.Key.CostPrice,
+                g.Key.Unit,
+                g.Key.MinimumStock,
+                g.Key.ReorderLevel,
+                g.Key.IsActive,
+                g.Key.IsSellable,
+                g.Key.IsPurchasable,
+                g.Key.CategoryId,
+                TotalStock = g.Sum(bps => bps.Quantity),
+                AvailableStock = g.Sum(bps => bps.Quantity - bps.ReservedQuantity)
+            })
+            .Where(x => x.TotalStock <= x.MinimumStock)
+            .OrderBy(x => x.TotalStock)
             .ToListAsync();
+
+#pragma warning disable CS0618
+        var dtos = aggregates.Select(x => new ProductReadDto
+        {
+            Id = x.ProductId,
+            Name = x.Name,
+            SKU = x.SKU,
+            Barcode = x.Barcode ?? string.Empty,
+            Price = x.Price,
+            CostPrice = x.CostPrice,
+            TotalStockQuantity = x.TotalStock,
+            AvailableStockQuantity = x.AvailableStock,
+            StockQuantity = x.TotalStock,
+            MinimumStock = x.MinimumStock,
+            ReorderLevel = x.ReorderLevel,
+            Unit = x.Unit ?? string.Empty,
+            IsActive = x.IsActive,
+            IsSellable = x.IsSellable,
+            IsPurchasable = x.IsPurchasable,
+            CategoryId = x.CategoryId
+        }).ToList();
+#pragma warning restore CS0618
             
-        return Ok(ApiResponse<List<ProductReadDto>>.SuccessResult(products));
+        return Ok(ApiResponse<List<ProductReadDto>>.SuccessResult(dtos));
     }
     
     [HttpGet("reorder-needed")]
     public async Task<ActionResult<ApiResponse<List<ProductReadDto>>>> GetReorderNeeded()
     {
-        var companyId = _currentUser.CompanyId.Value;
-        var products = await _context.Products
-            .Include(p => p.Category)
-            .Include(p => p.ProductImages)
-            .Where(p => p.CompanyId == companyId && p.IsActive && p.StockQuantity <= p.ReorderLevel)
-            .Select(p => MapToReadDto(p))
+        var companyId = _currentUser.CompanyId!.Value;
+
+        // Q1-A: Admin → إجمالي الفروع | Branch User → فرعه فقط
+        bool isAdminScope = _currentUser.IsSuperAdmin
+            || _currentUser.Roles.Contains("admin")
+            || _currentUser.Roles.Contains("owner");
+        int? scopedBranchId = isAdminScope ? null : _currentUser.BranchId;
+
+        var aggregates = await _context.BranchProductStocks
+            .Where(bps => bps.CompanyId == companyId
+                && bps.Product.IsActive
+                && bps.Product.ReorderLevel > 0
+                && (scopedBranchId == null || bps.BranchId == scopedBranchId))
+            .GroupBy(bps => new
+            {
+                bps.ProductId,
+                bps.Product.Name,
+                bps.Product.SKU,
+                bps.Product.Barcode,
+                bps.Product.Price,
+                bps.Product.CostPrice,
+                bps.Product.Unit,
+                bps.Product.MinimumStock,
+                bps.Product.ReorderLevel,
+                bps.Product.IsActive,
+                bps.Product.IsSellable,
+                bps.Product.IsPurchasable,
+                bps.Product.CategoryId
+            })
+            .Select(g => new
+            {
+                g.Key.ProductId,
+                g.Key.Name,
+                g.Key.SKU,
+                g.Key.Barcode,
+                g.Key.Price,
+                g.Key.CostPrice,
+                g.Key.Unit,
+                g.Key.MinimumStock,
+                g.Key.ReorderLevel,
+                g.Key.IsActive,
+                g.Key.IsSellable,
+                g.Key.IsPurchasable,
+                g.Key.CategoryId,
+                TotalStock = g.Sum(bps => bps.Quantity),
+                AvailableStock = g.Sum(bps => bps.Quantity - bps.ReservedQuantity)
+            })
+            .Where(x => x.TotalStock <= x.ReorderLevel)
+            .OrderBy(x => x.TotalStock)
             .ToListAsync();
+
+#pragma warning disable CS0618
+        var dtos = aggregates.Select(x => new ProductReadDto
+        {
+            Id = x.ProductId,
+            Name = x.Name,
+            SKU = x.SKU,
+            Barcode = x.Barcode ?? string.Empty,
+            Price = x.Price,
+            CostPrice = x.CostPrice,
+            TotalStockQuantity = x.TotalStock,
+            AvailableStockQuantity = x.AvailableStock,
+            StockQuantity = x.TotalStock,
+            MinimumStock = x.MinimumStock,
+            ReorderLevel = x.ReorderLevel,
+            Unit = x.Unit ?? string.Empty,
+            IsActive = x.IsActive,
+            IsSellable = x.IsSellable,
+            IsPurchasable = x.IsPurchasable,
+            CategoryId = x.CategoryId
+        }).ToList();
+#pragma warning restore CS0618
             
-        return Ok(ApiResponse<List<ProductReadDto>>.SuccessResult(products));
+        return Ok(ApiResponse<List<ProductReadDto>>.SuccessResult(dtos));
     }
 
     /// <summary>

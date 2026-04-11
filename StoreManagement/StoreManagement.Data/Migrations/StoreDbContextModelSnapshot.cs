@@ -495,6 +495,91 @@ namespace StoreManagement.Data.Migrations
                     b.ToTable("Plugins");
                 });
 
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Diagnostics.ReconciliationFinding", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AnomalySignature")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DetectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EditCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ResolutionSource")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ResolvedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("RuleCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("ResolvedByUserId");
+
+                    b.ToTable("ReconciliationFindings");
+                });
+
             modelBuilder.Entity("StoreManagement.Shared.Entities.Finance.AccountSettlement", b =>
                 {
                     b.Property<int>("Id")
@@ -558,6 +643,44 @@ namespace StoreManagement.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("AccountSettlements");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Finance.AccountingPeriod", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ClosedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "StartDate", "EndDate")
+                        .IsUnique();
+
+                    b.ToTable("AccountingPeriods");
                 });
 
             modelBuilder.Entity("StoreManagement.Shared.Entities.Finance.CashRegisterShift", b =>
@@ -642,6 +765,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("BranchId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancelledByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("CompanyId")
                         .HasColumnType("int");
 
@@ -657,6 +786,18 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
+                    b.Property<int?>("FinancialSourceId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FinancialSourceType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FinancialStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -667,6 +808,9 @@ namespace StoreManagement.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("RelatedEntityId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReversalOfId")
                         .HasColumnType("int");
 
                     b.Property<byte[]>("RowVersion")
@@ -716,6 +860,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("BranchId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancelledByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("CompanyId")
                         .HasColumnType("int");
 
@@ -734,6 +884,18 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
+                    b.Property<int?>("FinancialSourceId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FinancialSourceType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FinancialStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -748,6 +910,9 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ReversalOfId")
+                        .HasColumnType("int");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -805,6 +970,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("BranchId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancelledByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("CompanyId")
                         .HasColumnType("int");
 
@@ -820,6 +991,18 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
+                    b.Property<int?>("FinancialSourceId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FinancialSourceType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FinancialStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -834,6 +1017,9 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ReversalOfId")
+                        .HasColumnType("int");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -1719,11 +1905,11 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
-                    b.Property<double>("Quantity")
-                        .HasColumnType("float");
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,4)");
 
-                    b.Property<double>("ReservedQuantity")
-                        .HasColumnType("float");
+                    b.Property<decimal>("ReservedQuantity")
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -1805,8 +1991,8 @@ namespace StoreManagement.Data.Migrations
                     b.Property<bool>("IsSellable")
                         .HasColumnType("bit");
 
-                    b.Property<double>("MinimumStock")
-                        .HasColumnType("float");
+                    b.Property<decimal>("MinimumStock")
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<DateTime?>("ModifiedDate")
                         .HasColumnType("datetime2");
@@ -1818,8 +2004,8 @@ namespace StoreManagement.Data.Migrations
                     b.Property<decimal>("Price")
                         .HasColumnType("decimal(18,4)");
 
-                    b.Property<double>("ReorderLevel")
-                        .HasColumnType("float");
+                    b.Property<decimal>("ReorderLevel")
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -1828,9 +2014,6 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<string>("SKU")
                         .HasColumnType("nvarchar(450)");
-
-                    b.Property<double>("StockQuantity")
-                        .HasColumnType("float");
 
                     b.Property<string>("Unit")
                         .IsRequired()
@@ -2071,8 +2254,8 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
-                    b.Property<double>("Quantity")
-                        .HasColumnType("float");
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<int>("ReasonType")
                         .HasColumnType("int");
@@ -2102,11 +2285,11 @@ namespace StoreManagement.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<double>("AfterQuantity")
-                        .HasColumnType("float");
+                    b.Property<decimal>("AfterQuantity")
+                        .HasColumnType("decimal(18,4)");
 
-                    b.Property<double>("BeforeQuantity")
-                        .HasColumnType("float");
+                    b.Property<decimal>("BeforeQuantity")
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<int>("BranchId")
                         .HasColumnType("int");
@@ -2144,8 +2327,8 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
-                    b.Property<double>("Quantity")
-                        .HasColumnType("float");
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<int?>("ReasonType")
                         .HasColumnType("int");
@@ -2259,8 +2442,8 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
-                    b.Property<double>("Quantity")
-                        .HasColumnType("float");
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -2574,6 +2757,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("BranchId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancelledByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("CompanyId")
                         .HasColumnType("int");
 
@@ -2595,6 +2784,9 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
+                    b.Property<string>("IdempotencyKey")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsApproved")
                         .HasColumnType("bit");
 
@@ -2602,6 +2794,9 @@ namespace StoreManagement.Data.Migrations
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsInstallment")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IssueCashRefund")
                         .HasColumnType("bit");
 
                     b.Property<DateTime?>("ModifiedDate")
@@ -2686,8 +2881,8 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
 
-                    b.Property<double>("Quantity")
-                        .HasColumnType("float");
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("decimal(18,4)");
@@ -2815,6 +3010,23 @@ namespace StoreManagement.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Diagnostics.ReconciliationFinding", b =>
+                {
+                    b.HasOne("StoreManagement.Shared.Entities.Configuration.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("StoreManagement.Shared.Entities.Identity.User", "ResolvedByUser")
+                        .WithMany()
+                        .HasForeignKey("ResolvedByUserId");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("ResolvedByUser");
                 });
 
             modelBuilder.Entity("StoreManagement.Shared.Entities.Finance.AccountSettlement", b =>

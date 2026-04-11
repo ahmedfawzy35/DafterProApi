@@ -34,6 +34,20 @@ public class CustomerReceipt : BaseEntity, IBranchEntity
     // الملاحظات
     public string? Notes { get; set; }
 
+    [System.ComponentModel.DataAnnotations.Timestamp]
+    public byte[]? RowVersion { get; set; }
+
+    // ===== ERP Traceability & Financial Integrity =====
+    public FinancialStatus FinancialStatus { get; set; } = FinancialStatus.Active;
+    public FinancialSourceType? FinancialSourceType { get; set; }
+    public int? FinancialSourceId { get; set; }
+    public string? IdempotencyKey { get; set; } // للحماية من تكرار الضغطات
+    
+    // Cancellation tracking
+    public int? ReversalOfId { get; set; } // If this is a reversal, point to the original record
+    public int? CancelledByUserId { get; set; }
+    public DateTime? CancelledAt { get; set; }
+
     // المخصصات التابعة لهذا السند
     public ICollection<CustomerReceiptAllocation> Allocations { get; set; } = [];
 }
