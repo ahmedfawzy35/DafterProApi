@@ -237,6 +237,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int?>("Currency")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
@@ -347,6 +353,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int>("DataType")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
@@ -375,6 +387,277 @@ namespace StoreManagement.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("CompanyPolicies");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Configuration.CompanySettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AllowAnonymousCustomer")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowBelowCostSale")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowCashRefund")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowCashSales")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowCreditPurchases")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowCreditSales")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowDiscount")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowEarlySettlement")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowEditCostAfterPosting")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowExchange")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowInstallmentSales")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowMultipleCashboxes")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowNegativeStock")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowPartialInstallmentPayment")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowPriceOverride")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowReschedule")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllowStoreCreditRefund")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("ApplyLateFees")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AutoGenerateSku")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AutoReserveStockOnDraft")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DecimalPlaces")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("DefaultBranchId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DefaultFrequency")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DefaultInstallmentCount")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("DefaultLateFeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("DiscountApprovalThresholdPercent")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("EditCount")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("EnableAdvances")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableApprovals")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableAttendance")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableBarcode")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableBatchOrExpiryTracking")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableEmployees")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableExpenses")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableInstallments")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableInventory")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableKeyboardShortcuts")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnablePayroll")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnablePurchaseReturns")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnablePurchases")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableQuickSaleScreen")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableReturns")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableRevenues")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableSales")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableShiftTracking")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableStockAdjustments")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableStockTransfers")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableTaxes")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableTouchMode")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("EnableTreasury")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("ExpenseApprovalThreshold")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("HasBranches")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("MaxDiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("MaxReturnDays")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("MultiUserMode")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("PricesIncludeTax")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireApprovalForCreditOverLimit")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireApprovalForExpense")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireApprovalForHighDiscount")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireApprovalForReschedule")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireApprovalForReturns")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireApprovalForStockAdjustment")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireCustomerOnSale")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireNotesOnManualActions")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireReferenceInvoice")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireShiftOpenBeforeSale")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireSupplierOnPurchase")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("ReturnMode")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("SettingsVersion")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("ShowAdvancedMenus")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("ShowCostPriceToAuthorizedUsersOnly")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("TrackStockByBranch")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("UseSimpleDashboard")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId")
+                        .IsUnique();
+
+                    b.ToTable("CompanySettings", (string)null);
                 });
 
             modelBuilder.Entity("StoreManagement.Shared.Entities.Core.AuditLog", b =>
@@ -520,6 +803,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("DetectedAt")
                         .HasColumnType("datetime2");
 
@@ -605,6 +894,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -712,6 +1007,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<decimal?>("Difference")
                         .HasColumnType("decimal(18,2)");
 
@@ -782,6 +1083,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -880,6 +1187,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -988,6 +1301,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
@@ -1089,6 +1408,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
@@ -1169,6 +1494,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<int?>("CurrentBranchId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
@@ -1231,6 +1562,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
@@ -1283,6 +1620,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -1346,6 +1689,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
@@ -1395,6 +1744,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -1491,6 +1846,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
@@ -1562,6 +1923,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
@@ -1615,6 +1982,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -1680,6 +2053,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -1970,6 +2349,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
@@ -2059,6 +2444,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
@@ -2109,6 +2500,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -2198,6 +2595,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
@@ -2241,6 +2644,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -2305,6 +2714,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -2380,6 +2795,12 @@ namespace StoreManagement.Data.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
 
@@ -2429,6 +2850,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -2490,6 +2917,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<decimal>("CreditLimit")
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -2594,6 +3027,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("EditCount")
                         .HasColumnType("int");
@@ -2734,6 +3173,263 @@ namespace StoreManagement.Data.Migrations
                     b.ToTable("PlanFeatures");
                 });
 
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Installments.InstallmentPaymentAllocation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AllocationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("AmountAllocated")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CustomerReceiptId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EditCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("InstallmentScheduleItemId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("PenaltyAllocated")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerReceiptId");
+
+                    b.HasIndex("InstallmentScheduleItemId");
+
+                    b.ToTable("InstallmentPaymentAllocations");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Installments.InstallmentPlan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("DownPayment")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("EditCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("RemainingAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("InstallmentPlans");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Installments.InstallmentRescheduleHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ApprovedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EditCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("InstallmentPlanId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OldScheduleSnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("RescheduleDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InstallmentPlanId");
+
+                    b.ToTable("InstallmentRescheduleHistories");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Installments.InstallmentScheduleItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EditCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("InstallmentPlanId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("PaidAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PenaltyAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime?>("SettledDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InstallmentPlanId");
+
+                    b.ToTable("InstallmentScheduleItems");
+                });
+
             modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Invoice", b =>
                 {
                     b.Property<int>("Id")
@@ -2777,6 +3473,12 @@ namespace StoreManagement.Data.Migrations
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByUserId")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("Discount")
                         .HasColumnType("decimal(18,4)");
@@ -3006,6 +3708,17 @@ namespace StoreManagement.Data.Migrations
                     b.HasOne("StoreManagement.Shared.Entities.Configuration.Company", "Company")
                         .WithMany("PhoneNumbers")
                         .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Configuration.CompanySettings", b =>
+                {
+                    b.HasOne("StoreManagement.Shared.Entities.Configuration.Company", "Company")
+                        .WithOne()
+                        .HasForeignKey("StoreManagement.Shared.Entities.Configuration.CompanySettings", "CompanyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -3466,6 +4179,66 @@ namespace StoreManagement.Data.Migrations
                     b.Navigation("Plan");
                 });
 
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Installments.InstallmentPaymentAllocation", b =>
+                {
+                    b.HasOne("StoreManagement.Shared.Entities.Finance.CustomerReceipt", "CustomerReceipt")
+                        .WithMany()
+                        .HasForeignKey("CustomerReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("StoreManagement.Shared.Entities.Sales.Installments.InstallmentScheduleItem", "InstallmentScheduleItem")
+                        .WithMany("Allocations")
+                        .HasForeignKey("InstallmentScheduleItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CustomerReceipt");
+
+                    b.Navigation("InstallmentScheduleItem");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Installments.InstallmentPlan", b =>
+                {
+                    b.HasOne("StoreManagement.Shared.Entities.Partners.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("StoreManagement.Shared.Entities.Sales.Invoice", "Invoice")
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Installments.InstallmentRescheduleHistory", b =>
+                {
+                    b.HasOne("StoreManagement.Shared.Entities.Sales.Installments.InstallmentPlan", "InstallmentPlan")
+                        .WithMany("RescheduleHistories")
+                        .HasForeignKey("InstallmentPlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InstallmentPlan");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Installments.InstallmentScheduleItem", b =>
+                {
+                    b.HasOne("StoreManagement.Shared.Entities.Sales.Installments.InstallmentPlan", "InstallmentPlan")
+                        .WithMany("Schedules")
+                        .HasForeignKey("InstallmentPlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InstallmentPlan");
+                });
+
             modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Invoice", b =>
                 {
                     b.HasOne("StoreManagement.Shared.Entities.Partners.Customer", "Customer")
@@ -3612,6 +4385,18 @@ namespace StoreManagement.Data.Migrations
                     b.Navigation("Features");
 
                     b.Navigation("Subscriptions");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Installments.InstallmentPlan", b =>
+                {
+                    b.Navigation("RescheduleHistories");
+
+                    b.Navigation("Schedules");
+                });
+
+            modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Installments.InstallmentScheduleItem", b =>
+                {
+                    b.Navigation("Allocations");
                 });
 
             modelBuilder.Entity("StoreManagement.Shared.Entities.Sales.Invoice", b =>

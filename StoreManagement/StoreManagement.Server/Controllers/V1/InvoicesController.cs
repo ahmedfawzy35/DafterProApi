@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using StoreManagement.Shared.Common;
+using StoreManagement.Shared.Constants;
 using StoreManagement.Shared.DTOs;
 using StoreManagement.Shared.Enums;
 using StoreManagement.Shared.Interfaces;
@@ -20,12 +21,18 @@ public class InvoicesController : ControllerBase
     private readonly IInvoiceService _invoiceService;
     private readonly IAuditLogService _auditLogService;
     private readonly IReturnService _returnService;
+    private readonly ISalesPolicyService _salesPolicy;
 
-    public InvoicesController(IInvoiceService invoiceService, IAuditLogService auditLogService, IReturnService returnService)
+    public InvoicesController(
+        IInvoiceService invoiceService, 
+        IAuditLogService auditLogService, 
+        IReturnService returnService,
+        ISalesPolicyService salesPolicy)
     {
         _invoiceService = invoiceService;
         _auditLogService = auditLogService;
         _returnService = returnService;
+        _salesPolicy = salesPolicy;
     }
 
     [HttpGet]
@@ -48,15 +55,19 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin,Accountant,Sales")]
+    [Authorize(Policy = Permissions.Sales.Create)]
     public async Task<ActionResult<ApiResponse<InvoiceReadDto>>> Create([FromBody] CreateInvoiceDto dto)
     {
+        // 1. التحقق من السياسة (Policy Validation)
+        await _salesPolicy.EnsureCanSellAsync(dto.Items.Sum(x => (decimal)x.Quantity * x.UnitPrice));
+        
+        // 2. التنفيذ (Execution)
         var invoice = await _invoiceService.CreateAsync(dto);
         return Ok(ApiResponse<InvoiceReadDto>.SuccessResult(invoice, "تم إنشاء الفاتورة بنجاح"));
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "admin,accountant")]
+    [Authorize(Policy = Permissions.Sales.Delete)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(int id)
     {
         await _invoiceService.DeleteAsync(id);
@@ -64,7 +75,7 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpPost("{id:int}/cancel")]
-    [Authorize(Roles = "admin,accountant")]
+    [Authorize(Policy = Permissions.Sales.Delete)] // أو إضافة Permissions.Sales.Cancel لاحقاً
     public async Task<ActionResult<ApiResponse<object>>> Cancel(int id)
     {
         await _invoiceService.CancelAsync(id);
@@ -84,7 +95,7 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpPost("{invoiceId:int}/approve")]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Policy = Permissions.Returns.Approve)]
     public async Task<ActionResult<ApiResponse<InvoiceReadDto>>> ApproveReturn(int invoiceId, [FromBody] ApproveReturnDto dto)
     {
         var result = await _returnService.ApproveManualReturnAsync(invoiceId, dto.Notes);
@@ -92,7 +103,7 @@ public class InvoicesController : ControllerBase
     }
 
     [HttpPost("{invoiceId:int}/reject")]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Policy = Permissions.Returns.Approve)]
     public async Task<ActionResult<ApiResponse<object>>> RejectReturn(int invoiceId, [FromBody] RejectReturnDto dto)
     {
         await _returnService.RejectManualReturnAsync(invoiceId, dto.Reason);

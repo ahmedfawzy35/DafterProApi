@@ -32,6 +32,7 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<CompanyPhoneNumber> CompanyPhoneNumbers => Set<CompanyPhoneNumber>();
     public DbSet<CompanyLogo> CompanyLogos => Set<CompanyLogo>();
+    public DbSet<CompanySettings> CompanySettings => Set<CompanySettings>();
     public DbSet<Branch> Branches => Set<Branch>();
 
     // ===== العملاء والموردون =====
@@ -65,6 +66,12 @@ public class StoreDbContext : IdentityDbContext<User, Role, int>
     public DbSet<CustomerReceiptAllocation> CustomerReceiptAllocations => Set<CustomerReceiptAllocation>();
     public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
     public DbSet<SupplierPaymentAllocation> SupplierPaymentAllocations => Set<SupplierPaymentAllocation>();
+
+    // ===== التقسيط (Installments) =====
+    public DbSet<StoreManagement.Shared.Entities.Sales.Installments.InstallmentPlan> InstallmentPlans => Set<StoreManagement.Shared.Entities.Sales.Installments.InstallmentPlan>();
+    public DbSet<StoreManagement.Shared.Entities.Sales.Installments.InstallmentScheduleItem> InstallmentScheduleItems => Set<StoreManagement.Shared.Entities.Sales.Installments.InstallmentScheduleItem>();
+    public DbSet<StoreManagement.Shared.Entities.Sales.Installments.InstallmentPaymentAllocation> InstallmentPaymentAllocations => Set<StoreManagement.Shared.Entities.Sales.Installments.InstallmentPaymentAllocation>();
+    public DbSet<StoreManagement.Shared.Entities.Sales.Installments.InstallmentRescheduleHistory> InstallmentRescheduleHistories => Set<StoreManagement.Shared.Entities.Sales.Installments.InstallmentRescheduleHistory>();
 
     public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
 

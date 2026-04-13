@@ -6,6 +6,8 @@ namespace StoreManagement.Shared.Interfaces;
 public interface ISoftDelete
 {
     bool IsDeleted { get; set; }
+    DateTime? DeletedAt { get; set; }
+    int? DeletedByUserId { get; set; }
 }
 
 /// <summary>

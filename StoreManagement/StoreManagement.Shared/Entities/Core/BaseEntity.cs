@@ -15,6 +15,8 @@ public abstract class BaseEntity : IAuditEntity, ICompanyEntity
 
     // حذف مؤقت (Soft Delete)
     public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
+    public int? DeletedByUserId { get; set; }
 
     // عداد مرات التعديل
     public int EditCount { get; set; } = 0;

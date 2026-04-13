@@ -20,6 +20,7 @@ public class ReturnService : IReturnService
     private readonly IProductService _productService;
     private readonly IOutboxService _outboxService;
     private readonly IAccountingPeriodService _accountingPeriodService;
+    private readonly IReturnPolicyService _returnPolicy;
 
     public ReturnService(
         StoreDbContext context,
@@ -28,7 +29,8 @@ public class ReturnService : IReturnService
         IFinanceService financeService,
         IProductService productService,
         IOutboxService outboxService,
-        IAccountingPeriodService accountingPeriodService)
+        IAccountingPeriodService accountingPeriodService,
+        IReturnPolicyService returnPolicy)
     {
         _context = context;
         _currentUser = currentUser;
@@ -37,6 +39,7 @@ public class ReturnService : IReturnService
         _productService = productService;
         _outboxService = outboxService;
         _accountingPeriodService = accountingPeriodService;
+        _returnPolicy = returnPolicy;
     }
 
     public async Task<InvoiceReadDto> CreateReferencedReturnAsync(CreateInvoiceDto dto, InvoiceType returnType)
@@ -83,6 +86,9 @@ public class ReturnService : IReturnService
         var branchId = dto.BranchId;
         if (originalInvoice.BranchId != branchId)
             throw new InvalidOperationException("لا يمكن إرجاع فاتورة من فرع مختلف.");
+
+        // التحقق من سياسة المرتجعات (Policy Check)
+        await _returnPolicy.EnsureReturnIsAllowedAsync(originalInvoice.Date, dto.Items.Sum(x => (decimal)x.Quantity * x.UnitPrice));
 
         await _accountingPeriodService.EnsureDateIsOpenAsync(_currentUser.CompanyId!.Value, dto.Date);
 
@@ -271,6 +277,10 @@ public class ReturnService : IReturnService
         }
 
         var branchId = dto.BranchId;
+
+        // التحقق من سياسة المرتجعات (Policy Check)
+        // في المرتجع اليدوي، نعتبر تاريخ الإرجاع هو تاريخ اليوم ولكن نتحقق من تفعيل النظام
+        await _returnPolicy.EnsureReturnIsAllowedAsync(DateTime.UtcNow, dto.Items.Sum(x => (decimal)x.Quantity * x.UnitPrice));
 
         await _accountingPeriodService.EnsureDateIsOpenAsync(_currentUser.CompanyId!.Value, dto.Date);
 

@@ -112,35 +112,14 @@ builder.Services.AddAuthentication(options =>
 // ===== Authorization Policies (Claims-Based Permissions) =====
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, StoreManagement.Server.Authorization.PlatformUserHandler>();
 
+// Dynamic Permission Policies
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationPolicyProvider, StoreManagement.Server.Authorization.PermissionPolicyProvider>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, StoreManagement.Server.Authorization.PermissionAuthorizationHandler>();
+
 builder.Services.AddAuthorizationBuilder()
     // سياسة وصول المنصة
     .AddPolicy("PlatformUserOnly", policy => 
-        policy.Requirements.Add(new StoreManagement.Server.Authorization.PlatformUserRequirement()))
-    // صلاحيات النظام
-    .AddPolicy("RequirePermission:settings.roles",
-        p => p.RequireClaim(AppClaims.Permission, "settings.roles"))
-    .AddPolicy("RequirePermission:settings.users",
-        p => p.RequireClaim(AppClaims.Permission, "settings.users"))
-    .AddPolicy("RequirePermission:settings.general",
-        p => p.RequireClaim(AppClaims.Permission, "settings.general"))
-    .AddPolicy("RequirePermission:settings.billing",
-        p => p.RequireClaim(AppClaims.Permission, "settings.billing"))
-    .AddPolicy("RequirePermission:employees.payroll",
-        p => p.RequireClaim(AppClaims.Permission, "employees.payroll"))
-    .AddPolicy("RequirePermission:employees.loans",
-        p => p.RequireClaim(AppClaims.Permission, "employees.loans"))
-    .AddPolicy("RequirePermission:sales.delete",
-        p => p.RequireClaim(AppClaims.Permission, "sales.delete"))
-    .AddPolicy("RequirePermission:sales.refund",
-        p => p.RequireClaim(AppClaims.Permission, "sales.refund"))
-    .AddPolicy("RequirePermission:finance.delete",
-        p => p.RequireClaim(AppClaims.Permission, "finance.delete"))
-    .AddPolicy("RequirePermission:reports.export",
-        p => p.RequireClaim(AppClaims.Permission, "reports.export"))
-    .AddPolicy("RequirePurchasesPermission", 
-        p => p.RequireClaim(AppClaims.Permission, "purchases.view"))
-    .AddPolicy("RequireSalesPermission", 
-        p => p.RequireClaim(AppClaims.Permission, "sales.view"));
+        policy.Requirements.Add(new StoreManagement.Server.Authorization.PlatformUserRequirement()));
 
 // ===== Distributed Cache (Redis + MemoryCache Fallback) =====
 builder.Services.AddMemoryCache();
@@ -203,11 +182,18 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IFeatureService, FeatureService>();
 builder.Services.AddScoped<IOutboxService, OutboxService>();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddScoped<ISalesPolicyService, StoreManagement.Services.Services.Policies.SalesPolicyService>();
+builder.Services.AddScoped<IReturnPolicyService, StoreManagement.Services.Services.Policies.ReturnPolicyService>();
+builder.Services.AddScoped<IInstallmentPolicyService, StoreManagement.Services.Services.Policies.InstallmentPolicyService>();
+builder.Services.AddScoped<ICompanySettingsCacheService, CompanySettingsCacheService>();
 
 // Business Logic Services (Scoped)
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+builder.Services.AddScoped<IInstallmentService, InstallmentService>();
+builder.Services.AddScoped<IInstallmentReportService, InstallmentReportService>();
+builder.Services.AddScoped<IBootstrapService, BootstrapService>();
 builder.Services.AddScoped<IReturnService, ReturnService>();
 builder.Services.AddScoped<IReconciliationService, StoreManagement.Infrastructure.Services.ReconciliationService>();
 builder.Services.AddScoped<ICashTransactionService, CashTransactionService>();
@@ -219,6 +205,7 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IBranchService, BranchService>();
 builder.Services.AddScoped<IBranchInventoryService, BranchInventoryService>(); // New Branch Inventory Service
+builder.Services.AddScoped<ICompanySettingsService, CompanySettingsService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();

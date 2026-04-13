@@ -28,6 +28,7 @@ public class InvoiceService : IInvoiceService
     private readonly IFinanceService _financeService;
     private readonly IReturnService _returnService;
     private readonly IAccountingPeriodService _accountingPeriodService;
+    private readonly ISalesPolicyService _salesPolicyService;
 
     public InvoiceService(
         StoreDbContext context,
@@ -37,7 +38,8 @@ public class InvoiceService : IInvoiceService
         IProductService productService,
         IFinanceService financeService,
         IReturnService returnService,
-        IAccountingPeriodService accountingPeriodService)
+        IAccountingPeriodService accountingPeriodService,
+        ISalesPolicyService salesPolicyService)
     {
         _context = context;
         _currentUser = currentUser;
@@ -47,6 +49,7 @@ public class InvoiceService : IInvoiceService
         _financeService = financeService;
         _returnService = returnService;
         _accountingPeriodService = accountingPeriodService;
+        _salesPolicyService = salesPolicyService;
     }
 
     public async Task<PagedResult<InvoiceReadDto>> GetAllAsync(
@@ -233,7 +236,17 @@ public class InvoiceService : IInvoiceService
                     CostPriceAtSale = product.CostPrice // ✅ تخزين تكلفة الوحدة وقت البيع لاحتساب الأرباح
                 });
 
+                if (isSale)
+                {
+                    await _salesPolicyService.EnsureItemInventoryAvailableAsync(branchId, itemDto.ProductId, itemDto.Quantity);
+                }
+
                 totalValue += (decimal)itemDto.Quantity * itemDto.UnitPrice;
+            }
+
+            if (isSale)
+            {
+                await _salesPolicyService.EnsureCanSellAsync(totalValue);
             }
 
             invoice.TotalValue = totalValue;

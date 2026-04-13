@@ -23,6 +23,19 @@ public static class DatabaseSeeder
         context.Companies.Add(company);
         context.SaveChanges();
 
+        // 1.5. CompanySettings (Required for Policy tests)
+        var companySettings = new CompanySettings
+        {
+            Id = 1,
+            CompanyId = 1,
+            EnableInstallments = true,
+            DefaultInstallmentCount = 6,
+            AllowPartialInstallmentPayment = true,
+            AllowEarlySettlement = true
+        };
+        context.CompanySettings.Add(companySettings);
+        context.SaveChanges();
+
         // 2. SaaS Subscription (Fix for 403 Forbidden for non-admins)
         var plan = new Plan
         {

@@ -5,6 +5,9 @@ namespace StoreManagement.Shared.Interfaces;
 /// </summary>
 public interface IRepository<T> where T : class
 {
+    // استرجاع جميع السجلات كـ Queryable لدعم الفلترة المتقدمة (IgnoreQueryFilters)
+    IQueryable<T> Query();
+
     // استرجاع سجل بواسطة المعرف
     Task<T?> GetByIdAsync(int id);
 

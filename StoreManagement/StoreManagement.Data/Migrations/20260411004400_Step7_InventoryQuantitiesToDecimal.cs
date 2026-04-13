@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -82,6 +82,10 @@ namespace StoreManagement.Data.Migrations
                 oldClrType: typeof(double),
                 oldType: "float");
 
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_BranchProductStock_ReservedQuantity",
+                table: "BranchProductStocks");
+
             migrationBuilder.AlterColumn<decimal>(
                 name: "ReservedQuantity",
                 table: "BranchProductStocks",
@@ -89,6 +93,11 @@ namespace StoreManagement.Data.Migrations
                 nullable: false,
                 oldClrType: typeof(double),
                 oldType: "float");
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_BranchProductStock_ReservedQuantity",
+                table: "BranchProductStocks",
+                sql: "[ReservedQuantity] >= 0");
 
             migrationBuilder.AlterColumn<decimal>(
                 name: "Quantity",
@@ -174,6 +183,10 @@ namespace StoreManagement.Data.Migrations
                 oldClrType: typeof(decimal),
                 oldType: "decimal(18,4)");
 
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_BranchProductStock_ReservedQuantity",
+                table: "BranchProductStocks");
+
             migrationBuilder.AlterColumn<double>(
                 name: "ReservedQuantity",
                 table: "BranchProductStocks",
@@ -181,6 +194,11 @@ namespace StoreManagement.Data.Migrations
                 nullable: false,
                 oldClrType: typeof(decimal),
                 oldType: "decimal(18,4)");
+
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_BranchProductStock_ReservedQuantity",
+                table: "BranchProductStocks",
+                sql: "[ReservedQuantity] >= 0");
 
             migrationBuilder.AlterColumn<double>(
                 name: "Quantity",

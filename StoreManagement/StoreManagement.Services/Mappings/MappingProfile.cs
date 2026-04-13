@@ -8,6 +8,7 @@ using StoreManagement.Shared.Entities.Identity;
 using StoreManagement.Shared.Entities.Partners;
 using StoreManagement.Shared.Entities.Configuration;
 using StoreManagement.Shared.Entities.Core;
+using StoreManagement.Shared.DTOs.Settings;
 
 namespace StoreManagement.Services.Mappings;
 
@@ -96,5 +97,14 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()))
             .ForMember(dest => dest.RemainingAmount, 
                 opt => opt.MapFrom(src => src.Installments.Where(i => !i.IsPaid).Sum(i => i.Amount)));
+
+        // ===== إعدادات الشركة =====
+        CreateMap<CompanySettings, CompanySettingsDto>();
+        CreateMap<CompanySettings, SettingsSnapshotDto>();
+        CreateMap<UpdateSalesSettingsDto, CompanySettings>();
+        CreateMap<UpdateInventorySettingsDto, CompanySettings>();
+        CreateMap<UpdateReturnsSettingsDto, CompanySettings>();
+        CreateMap<UpdateInstallmentsSettingsDto, CompanySettings>();
+        CreateMap<UpdateApprovalsSettingsDto, CompanySettings>();
     }
 }

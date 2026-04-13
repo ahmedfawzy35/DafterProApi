@@ -39,11 +39,13 @@ public class Company : IAuditEntity
     public Currency? Currency { get; set; }         // العملة الافتراضية
     public string? Description { get; set; }        // وصف النشاط
 
-    // ===== حقول التدقيق (Audit) =====
+    // ===== حقول التدقيق (Audit & Soft Delete) =====
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     public DateTime? ModifiedDate { get; set; }
-    public bool IsDeleted { get; set; } = false;
     public int? CreatedByUserId { get; set; }
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
+    public int? DeletedByUserId { get; set; }
 
     // علاقة الشركة بالفروع
     public ICollection<Branch> Branches { get; set; } = [];

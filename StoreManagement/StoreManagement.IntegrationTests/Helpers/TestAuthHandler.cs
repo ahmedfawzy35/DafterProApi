@@ -38,9 +38,12 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
         claims.Add(new Claim(ClaimTypes.Name, "Test User"));
 
-        // 3. Permission Claims (Required for AlertsController policies)
-        claims.Add(new Claim(AppClaims.Permission, "purchases.view"));
-        claims.Add(new Claim(AppClaims.Permission, "sales.view"));
+        // 3. Permission Claims (Required for policy-based auth)
+        var allTenantPermissions = StoreManagement.Shared.Constants.Permissions.GetAllTenant();
+        foreach (var p in allTenantPermissions)
+        {
+            claims.Add(new Claim(AppClaims.Permission, p));
+        }
 
         // 4. Role (Default user)
         if (Request.Headers.TryGetValue("X-Test-Role", out var roleVals))

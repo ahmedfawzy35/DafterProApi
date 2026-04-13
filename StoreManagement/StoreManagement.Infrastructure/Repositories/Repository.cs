@@ -17,6 +17,10 @@ public class Repository<T> : IRepository<T> where T : class
         _dbSet = context.Set<T>();
     }
 
+    // استرجاع جميع السجلات كـ Queryable لدعم الفلترة المتقدمة (IgnoreQueryFilters)
+    public IQueryable<T> Query()
+        => _dbSet.AsQueryable();
+
     // استرجاع سجل بواسطة المعرف
     public async Task<T?> GetByIdAsync(int id)
         => await _dbSet.FindAsync(id);

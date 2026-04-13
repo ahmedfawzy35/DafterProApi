@@ -65,6 +65,35 @@ public static class Permissions
         public static readonly string[] All = new[] { View, Create, Return };
     }
 
+    // ===== المرتجعات (Returns) =====
+    public static class Returns
+    {
+        public const string View    = "returns.view";
+        public const string Process = "returns.process";
+        public const string Approve = "returns.approve";
+
+        public static readonly string[] All = new[] { View, Process, Approve };
+    }
+
+    // ===== التقسيط (Installments) =====
+    public static class Installments
+    {
+        public const string View       = "installments.view";
+        public const string Collect    = "installments.collect";
+        public const string Reschedule = "installments.reschedule";
+
+        public static readonly string[] All = new[] { View, Collect, Reschedule };
+    }
+
+    // ===== الموافقات (Approvals) =====
+    public static class Approvals
+    {
+        public const string View   = "approvals.view";
+        public const string Action = "approvals.action";
+
+        public static readonly string[] All = new[] { View, Action };
+    }
+
     // ===== المنتجات والمخزون =====
     public static class Inventory
     {
@@ -135,8 +164,9 @@ public static class Permissions
         public const string Roles    = "settings.roles";
         public const string Billing  = "settings.billing";
         public const string Branches = "settings.branches";
+        public const string CompanyAdmin = "settings.company_admin"; // New permission for Company Settings Management
 
-        public static readonly string[] All = new[] { General, Users, Roles, Billing, Branches };
+        public static readonly string[] All = new[] { General, Users, Roles, Billing, Branches, CompanyAdmin };
     }
 
     // ===== جميع صلاحيات المستأجر (Tenant) =====
@@ -145,6 +175,9 @@ public static class Permissions
             .Concat(Attendance.All)
             .Concat(Sales.All)
             .Concat(Purchases.All)
+            .Concat(Returns.All)
+            .Concat(Installments.All)
+            .Concat(Approvals.All)
             .Concat(Inventory.All)
             .Concat(Customers.All)
             .Concat(Suppliers.All)
@@ -170,24 +203,29 @@ public static class Permissions
             .Concat(Attendance.All)
             .Concat(Sales.All)
             .Concat(Purchases.All)
+            .Concat(Returns.All)
+            .Concat(Installments.All)
+            .Concat(Approvals.All)
             .Concat(Inventory.All)
             .Concat(Customers.All)
             .Concat(Suppliers.All)
             .Concat(Settlements.All)
             .Concat(Finance.All)
             .Concat(Reports.All)
-            .Concat(new[] { Settings.General, Settings.Branches })
+            .Concat(new[] { Settings.General, Settings.Branches, Settings.CompanyAdmin })
             .ToArray(),
         DefaultRoles.Accountant =>
             Settlements.All
             .Concat(Finance.All)
             .Concat(Reports.All)
-            .Concat(new[] { Sales.View, Purchases.View, Employees.Payroll, Employees.Loans, Employees.View })
+            .Concat(Approvals.All)
+            .Concat(Installments.All)
+            .Concat(new[] { Sales.View, Purchases.View, Employees.Payroll, Employees.Loans, Employees.View, Returns.Approve, Returns.Process })
             .ToArray(),
         DefaultRoles.Sales =>
-            new[] { Sales.View, Sales.Create, Customers.View, Customers.Create, Customers.Edit, Inventory.View },
+            new[] { Sales.View, Sales.Create, Customers.View, Customers.Create, Customers.Edit, Inventory.View, Returns.View, Returns.Process, Installments.Collect },
         DefaultRoles.InventoryClerk =>
-            new[] { Inventory.View, Inventory.Create, Inventory.Edit, Inventory.StockAdjustment, Purchases.View, Purchases.Create },
+            new[] { Inventory.View, Inventory.Create, Inventory.Edit, Inventory.StockAdjustment, Purchases.View, Purchases.Create, Returns.Process },
         _ => new string[0]
     };
 }

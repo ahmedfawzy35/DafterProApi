@@ -26,6 +26,9 @@ public static class DataSeeder
         // إنشاء الإضافات الأساسية
         await SeedPluginsAsync(context);
 
+        // تهيئة إعدادات الشركات (Company Settings)
+        await SeedCompanySettingsAsync(context, logger);
+
         await context.SaveChangesAsync();
     }
 
@@ -175,6 +178,33 @@ public static class DataSeeder
         };
 
         context.Plugins.AddRange(plugins);
+    }
+
+    private static async Task SeedCompanySettingsAsync(StoreDbContext context, Microsoft.Extensions.Logging.ILogger logger)
+    {
+        var companies = await context.Companies.IgnoreQueryFilters().ToListAsync();
+        foreach (var company in companies)
+        {
+            var hasSettings = await context.Set<StoreManagement.Shared.Entities.Configuration.CompanySettings>()
+                .IgnoreQueryFilters()
+                .AnyAsync(s => s.CompanyId == company.Id);
+
+            if (!hasSettings)
+            {
+                var settings = new StoreManagement.Shared.Entities.Configuration.CompanySettings
+                {
+                    CompanyId = company.Id,
+                    EnableSales = true,
+                    EnableReturns = true,
+                    EnableInventory = true,
+                    ReturnMode = StoreManagement.Shared.Enums.ReturnProcessMode.Simple,
+                    CurrencyCode = "EGP",
+                    DecimalPlaces = 2
+                };
+                context.Set<StoreManagement.Shared.Entities.Configuration.CompanySettings>().Add(settings);
+                logger.LogInformation("Initialized default settings for Company: {CompanyName}", company.Name);
+            }
+        }
     }
 
     private static string GetRoleDescription(string roleName) => roleName switch

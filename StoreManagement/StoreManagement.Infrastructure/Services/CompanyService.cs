@@ -20,12 +20,18 @@ public class CompanyService : ICompanyService
     private readonly StoreDbContext _context;
     private readonly ICurrentUserService _currentUser;
     private readonly UserManager<User> _userManager;
+    private readonly ICompanySettingsService _settingsService;
 
-    public CompanyService(StoreDbContext context, ICurrentUserService currentUser, UserManager<User> userManager)
+    public CompanyService(
+        StoreDbContext context, 
+        ICurrentUserService currentUser, 
+        UserManager<User> userManager,
+        ICompanySettingsService settingsService)
     {
         _context = context;
         _currentUser = currentUser;
         _userManager = userManager;
+        _settingsService = settingsService;
     }
 
     public async Task<List<CompanyReadDto>> GetAllAsync()
@@ -145,6 +151,9 @@ public class CompanyService : ICompanyService
             await _userManager.AddToRoleAsync(ownerUser, "Owner");
 
             await transaction.CommitAsync();
+
+            // Initialize default settings (can be done outside transaction as it's a separate entity but good to have it here)
+            await _settingsService.InitializeDefaultSettingsAsync(company.Id);
 
             var result = MapToDto(company);
             result.OwnerUserName = ownerUserName;

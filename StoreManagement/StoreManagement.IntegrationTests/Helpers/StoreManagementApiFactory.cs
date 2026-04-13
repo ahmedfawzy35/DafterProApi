@@ -18,11 +18,12 @@ namespace StoreManagement.IntegrationTests.Helpers;
 
 public class StoreManagementApiFactory : WebApplicationFactory<Program>
 {
-    // شيرد كونكشن للـ SQLite لضمان بقاء البيانات طوال فترة حياة الـ Factory
-    private readonly SqliteConnection _connection = new("DataSource=:memory:");
+    // شيرد كونكشن للـ SQLite لضمان بقاء البيانات طوال فترة حياة الـ Factory، واسم مميز لعزل الكلاسات
+    private readonly SqliteConnection _connection;
 
     public StoreManagementApiFactory()
     {
+        _connection = new SqliteConnection($"DataSource=file:{Guid.NewGuid()}?mode=memory&cache=shared");
         _connection.Open();
     }
 
@@ -61,10 +62,14 @@ public class StoreManagementApiFactory : WebApplicationFactory<Program>
     // الطريقة الصحيحة للـ Seeding في Minimal APIs هي بعد بناء الـ Host
     public void SeedDatabase()
     {
+        // Wipe the in-memory database completely by closing and reopening the connection
+        SqliteConnection.ClearPool(_connection);
+        _connection.Close();
+        _connection.Open();
+
         using var scope = Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
         
-        context.Database.EnsureDeleted();
         context.Database.EnsureCreated();
         
         DatabaseSeeder.SeedForTests(context);
